@@ -1,0 +1,3012 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<title>Hotel & Restaurant Management System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- Firebase (Firestore) - used so data is saved online and survives refresh/reinstall. Fill YOUR project config in the FIREBASE_CONFIG block near the top of the main script section below. -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --bg:#FBF7EF; --paper:#FFFFFF; --ink:#16302B; --ink-soft:#4B615B;
+    --line:#E4DCC8; --line-soft:#EFE9D8; --accent:#E0932E; --accent-deep:#B5691A;
+    --accent-bg:#FBEBD3; --good:#2F7A4D; --good-bg:#E5F2E9; --bad:#B23B3B; --bad-bg:#FBE7E7;
+    --sidebar:#122A25; --sidebar-soft:#9FC4B9;
+    --mono:'JetBrains Mono',monospace; --display:'Fraunces',serif; --body:'Inter',sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{font-family:var(--body);background:var(--bg);color:var(--ink);display:flex;min-height:100vh;}
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px;}
+
+  .sidebar{width:200px;flex:none;background:var(--sidebar);color:var(--sidebar-soft);display:flex;flex-direction:column;padding:20px 0;}
+  .brand{font-family:var(--display);font-weight:700;font-size:18px;color:#fff;padding:0 20px 18px 20px;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:10px;line-height:1.3;}
+  .brand small{display:block;font-family:var(--body);font-weight:400;font-size:10.5px;letter-spacing:.05em;color:var(--sidebar-soft);text-transform:uppercase;margin-top:4px;}
+  nav.navlist{display:flex;flex-direction:column;gap:2px;padding:8px 10px;}
+  .navbtn{display:flex;align-items:center;gap:10px;background:none;border:none;color:var(--sidebar-soft);padding:10px 12px;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;text-align:left;font-family:var(--body);transition:background .15s,color .15s;width:100%;}
+  .navbtn:hover{background:rgba(255,255,255,0.06);color:#fff;}
+  .navbtn.active{background:var(--accent);color:#1c1206;font-weight:600;}
+  .navbtn .ico{width:18px;text-align:center;font-size:15px;}
+  .sidebar-foot{margin-top:auto;padding:14px 20px;font-size:11px;color:rgba(159,196,185,0.75);border-top:1px solid rgba(255,255,255,0.08);}
+  .sidebar-foot .who{color:#fff;font-weight:600;display:block;margin-bottom:6px;}
+  .logout-btn{background:rgba(255,255,255,0.08);border:none;color:#fff;font-size:11.5px;padding:6px 10px;border-radius:6px;cursor:pointer;width:100%;font-family:var(--body);font-weight:600;}
+  .logout-btn:hover{background:rgba(255,255,255,0.16);}
+
+  main{flex:1;display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden;}
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:16px 28px;border-bottom:1px solid var(--line);background:var(--paper);flex:none;}
+  .topbar h1{font-family:var(--display);font-size:22px;margin:0;font-weight:600;}
+  .topbar .clock{font-family:var(--mono);font-size:13px;color:var(--ink-soft);}
+  .content{flex:1;overflow-y:auto;padding:24px 28px 60px 28px;}
+  .view{display:none;}
+  .view.active{display:block;}
+
+  .cardrow{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:22px;}
+  .stat{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:16px 18px;min-width:170px;flex:1;}
+  .stat .label{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);font-weight:600;}
+  .stat .value{font-family:var(--display);font-size:26px;font-weight:600;margin-top:6px;}
+  .stat .sub{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+
+  h2.sectitle{font-family:var(--display);font-size:19px;font-weight:600;margin:0 0 14px 0;}
+  .panel{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:20px;}
+
+  table.datatable{width:100%;border-collapse:collapse;font-size:13.5px;}
+  table.datatable th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);border-bottom:1px solid var(--line);padding:8px 10px;font-weight:600;}
+  table.datatable td{padding:9px 10px;border-bottom:1px solid var(--line-soft);}
+  table.datatable tr:last-child td{border-bottom:none;}
+  .num{font-family:var(--mono);text-align:right;}
+  .pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11.5px;font-weight:600;}
+  .pill.good{background:var(--good-bg);color:var(--good);}
+  .pill.bad{background:var(--bad-bg);color:var(--bad);}
+  .pill.warn{background:var(--accent-bg);color:var(--accent-deep);}
+
+  button.btn{font-family:var(--body);font-weight:600;font-size:13px;border:none;border-radius:8px;padding:9px 16px;cursor:pointer;background:var(--ink);color:#fff;}
+  button.btn:hover{background:#0d201c;}
+  button.btn.accent{background:var(--accent);color:#1c1206;}
+  button.btn.accent:hover{background:var(--accent-deep);color:#fff;}
+  button.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);}
+  button.btn.ghost:hover{background:var(--bg);}
+  button.btn.danger{background:var(--bad-bg);color:var(--bad);}
+  button.btn.small{padding:5px 10px;font-size:12px;border-radius:6px;}
+  button.btn:disabled{opacity:.5;cursor:not-allowed;}
+
+  input,select{font-family:var(--body);font-size:13.5px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--ink);}
+  input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px;}
+  label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-soft);font-weight:600;}
+  label.chk{display:flex;flex-direction:row;align-items:center;gap:6px;font-size:13px;color:var(--ink);font-weight:500;}
+
+  .formgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;align-items:end;}
+
+  .tablegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;}
+  .tablecard{border-radius:12px;padding:14px 16px;cursor:pointer;border:1px solid var(--line);background:var(--paper);transition:transform .1s;}
+  .tablecard:hover{transform:translateY(-2px);}
+  .tablecard.free{border-left:5px solid var(--good);}
+  .tablecard.occupied{border-left:5px solid var(--accent);background:var(--accent-bg);}
+  .tablecard.cleaning{border-left:5px solid #9B6B1F;background:#FBF2E2;}
+  .tablecard.active{border-left:5px solid var(--good);background:var(--good);}
+  .tablecard.active .tname,.tablecard.active .tstatus,.tablecard.active .tamount{color:#fff;}
+  .tablecard .tname{font-family:var(--display);font-size:17px;font-weight:600;}
+  .tablecard .tstatus{font-size:12px;margin-top:4px;color:var(--ink-soft);}
+  .tablecard .tamount{font-family:var(--mono);font-size:14px;margin-top:8px;font-weight:700;}
+  .ticon{width:22px;height:22px;border-radius:5px;border:1px solid var(--line);background:#fff;cursor:pointer;font-size:11px;line-height:1;}
+
+  .overlay{position:fixed;inset:0;background:rgba(15,25,22,0.55);display:none;align-items:center;justify-content:center;z-index:50;padding:20px;}
+  .overlay.active{display:flex;}
+  .modal{background:var(--bg);border-radius:14px;width:100%;max-width:920px;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3);}
+  .modal-head{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--line);background:var(--paper);}
+  .modal-head h3{font-family:var(--display);margin:0;font-size:18px;}
+  .modal-close{background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-soft);}
+  .modal-body{flex:1;overflow-y:auto;padding:18px 20px;}
+
+  .order-layout{display:grid;grid-template-columns:1.3fr 1fr;gap:18px;}
+  @media (max-width:720px){.order-layout{grid-template-columns:1fr;}}
+  .menu-search{margin-bottom:10px;width:100%;}
+  .cat-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;}
+  .cat-chip{padding:5px 12px;border-radius:20px;border:1px solid var(--line);background:#fff;font-size:12px;cursor:pointer;font-weight:600;}
+  .cat-chip.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .menu-picker{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-height:360px;overflow-y:auto;}
+  .menu-item{border:1px solid var(--line);background:#fff;border-radius:9px;padding:10px 12px;cursor:pointer;}
+  .menu-item:hover{border-color:var(--accent);}
+  .menu-item .mi-name{font-weight:600;font-size:13.5px;}
+  .menu-item .mi-price{font-family:var(--mono);color:var(--ink-soft);font-size:12.5px;margin-top:2px;}
+  .menu-item .mi-stock{font-size:11px;margin-top:3px;}
+
+  .ticket{background:#fffef8;border:1px dashed #C9BFA0;border-radius:6px;padding:16px 16px 20px 16px;font-family:var(--mono);position:relative;}
+  .ticket::before{content:"";position:absolute;top:-1px;left:0;right:0;height:8px;background-image:radial-gradient(circle at 6px 4px, var(--bg) 4px, transparent 4.5px);background-size:16px 8px;background-repeat:repeat-x;}
+  .ticket-head{text-align:center;border-bottom:1px dashed #C9BFA0;padding-bottom:8px;margin-bottom:8px;}
+  .ticket-head .tt{font-family:var(--display);font-size:15px;font-weight:700;letter-spacing:.03em;}
+  .ticket-head .ts{font-size:11px;color:var(--ink-soft);}
+  .ticket-line{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;align-items:center;gap:6px;}
+  .ticket-line .tl-name{flex:1;}
+  .ticket-line .tl-qty{display:flex;align-items:center;gap:4px;}
+  .qtybtn{width:20px;height:20px;border-radius:5px;border:1px solid var(--line);background:#fff;cursor:pointer;font-size:12px;line-height:1;}
+  .ticket-total{border-top:1px dashed #C9BFA0;margin-top:8px;padding-top:8px;display:flex;justify-content:space-between;font-size:14px;font-weight:700;}
+  .ticket-empty{text-align:center;color:var(--ink-soft);font-size:13px;padding:30px 0;font-family:var(--body);}
+  .rm-btn{background:none;border:none;color:var(--bad);cursor:pointer;font-size:14px;}
+
+  .billbox{margin-top:14px;background:#fff;border:1px solid var(--line);border-radius:9px;padding:12px;}
+  .billrow{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;font-family:var(--mono);}
+  .billrow.grand{font-weight:700;font-size:15px;border-top:1px solid var(--line);margin-top:6px;padding-top:8px;}
+
+  .empty-hint{color:var(--ink-soft);font-size:13px;text-align:center;padding:30px 10px;}
+
+  .report-filterbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px;}
+  .barwrap{background:var(--line-soft);border-radius:6px;height:8px;overflow:hidden;margin-top:4px;width:100%;}
+  .barfill{height:100%;background:var(--accent);}
+
+  .theme-row{display:flex;gap:16px;flex-wrap:wrap;}
+  .theme-swatch{width:150px;border-radius:14px;border:2px solid var(--line);cursor:pointer;overflow:hidden;padding:0;background:#fff;transition:transform .15s,box-shadow .15s;box-shadow:0 1px 3px rgba(0,0,0,0.06);}
+  .theme-swatch:hover{transform:translateY(-3px);box-shadow:0 8px 18px rgba(0,0,0,0.12);}
+  .theme-swatch.active{border-color:var(--ink);box-shadow:0 0 0 3px var(--accent-bg),0 8px 18px rgba(0,0,0,0.12);}
+  .theme-swatch .sw-top{height:64px;position:relative;overflow:hidden;}
+  .theme-swatch .sw-top .sw-bg{position:absolute;inset:0;}
+  .theme-swatch .sw-top .sw-accentbar{position:absolute;left:0;right:0;bottom:0;height:10px;}
+  .theme-swatch .sw-top .sw-dot{position:absolute;top:8px;left:8px;width:14px;height:14px;border-radius:50%;box-shadow:0 0 0 2px rgba(255,255,255,0.6);}
+  .theme-swatch .sw-check{position:absolute;top:6px;right:8px;width:20px;height:20px;border-radius:50%;background:#fff;color:var(--ink);font-size:12px;font-weight:800;display:none;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,0.25);}
+  .theme-swatch.active .sw-check{display:flex;}
+  .theme-swatch .sw-label{font-size:12.5px;padding:9px 6px;text-align:center;font-weight:700;background:#fff;color:#222;font-family:var(--display);letter-spacing:.01em;}
+
+  .formatcard{border:2px solid var(--line);border-radius:10px;padding:14px;cursor:pointer;background:#fff;text-align:left;width:100%;margin-bottom:10px;display:block;}
+  .formatcard:hover{border-color:var(--accent);}
+  .formatcard.active{border-color:var(--ink);background:var(--accent-bg);}
+  .formatcard .fc-title{font-weight:700;font-size:14px;font-family:var(--display);}
+  .formatcard .fc-desc{font-size:12px;color:var(--ink-soft);margin-top:3px;}
+
+  .userrow-edit{background:var(--bg);}
+  .permsline{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0;}
+  .authbg{position:fixed;inset:0;background:var(--sidebar);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;}
+  .authbg.hidden{display:none;}
+  .authcard{background:var(--paper);border-radius:16px;padding:30px 28px;max-width:400px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.4);}
+  .authcard h2{font-family:var(--display);margin:0 0 4px 0;font-size:22px;}
+  .authcard p.sub{color:var(--ink-soft);font-size:13px;margin:0 0 18px 0;}
+  .authcard label.f{margin-bottom:10px;}
+  .authcard input{width:100%;}
+  .autherr{color:var(--bad);font-size:12.5px;margin-top:4px;min-height:16px;}
+
+  @media (max-width:860px){
+    .sidebar{width:64px;}
+    .brand{font-size:0;padding:0 0 18px 0;text-align:center;}
+    .brand::before{content:"HMS";font-size:16px;}
+    .brand small{display:none;}
+    .navbtn span.label{display:none;}
+    .navbtn{justify-content:center;}
+    .sidebar-foot{display:none;}
+  }
+</style>
+</head>
+<body>
+
+<div class="authbg" id="authOverlay">
+  <div class="authcard">
+    <h2 id="authTitle">Master ID Setup</h2>
+    <p class="sub" id="authSub">Software shuru karne ke liye pehle Master ID banayein.</p>
+    <div id="authBody"></div>
+  </div>
+</div>
+
+<aside class="sidebar">
+  <div class="brand" id="brandBox">Hotel Name<small>Hotel & Restaurant</small></div>
+  <nav class="navlist" id="navlist"></nav>
+  <div class="sidebar-foot">
+    <span class="who" id="whoBox">-</span>
+    <button class="logout-btn" onclick="logout()">Logout</button>
+    <div style="text-align:center;margin-top:8px;">
+      <a href="#" style="font-size:10.5px;color:rgba(159,196,185,0.7);" onclick="event.preventDefault();switchClient();">Doosra Restaurant (Client ID)</a>
+    </div>
+  </div>
+</aside>
+
+<main>
+  <div class="topbar">
+    <h1 id="viewTitle">Dashboard</h1>
+    <div class="clock" id="clock"></div>
+  </div>
+  <div class="content">
+
+    <section class="view" id="view-dashboard">
+      <div class="panel" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+        <div>
+          <h2 class="sectitle" style="margin-bottom:2px;">Point of Sale</h2>
+          <div style="font-size:12.5px;color:var(--ink-soft);">Bina table select kiye, seedha counter/takeaway customer ka bill banayein</div>
+        </div>
+        <button class="btn accent" onclick="quickPOSBill()">+ Quick Bill (POS)</button>
+      </div>
+      <div class="cardrow" id="dashStats"></div>
+      <div class="panel">
+        <h2 class="sectitle">Aaj ke Top Bikne Wale Items</h2>
+        <table class="datatable" id="dashTopItems"><thead><tr><th>Item</th><th class="num">Qty</th><th class="num">Revenue</th></tr></thead><tbody></tbody></table>
+      </div>
+      <div class="panel">
+        <h2 class="sectitle">Low Stock Alert</h2>
+        <table class="datatable" id="dashLowStock"><thead><tr><th>Item</th><th class="num">Current Stock</th><th class="num">Reorder Level</th></tr></thead><tbody></tbody></table>
+      </div>
+    </section>
+
+    <section class="view" id="view-tables">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <div style="display:flex;gap:14px;font-size:13px;color:var(--ink-soft);">
+          <span>&#9679; <span style="color:var(--good)">Free</span></span>
+          <span>&#9679; <span style="color:var(--accent-deep)">Occupied</span></span>
+        </div>
+        <button class="btn ghost small" onclick="addTablePrompt()">+ Naya Table</button>
+      </div>
+      <div class="tablegrid" id="tableGrid"></div>
+    </section>
+
+    <section class="view" id="view-menu">
+      <div class="panel">
+        <h2 class="sectitle">Naya Item Add Karein</h2>
+        <div class="formgrid">
+          <label class="f">Item Naam<input id="mi_name" placeholder="e.g. Paneer Butter Masala"></label>
+          <label class="f">Category<input id="mi_cat" placeholder="e.g. Main Course"></label>
+          <label class="f">Price (Rs)<input id="mi_price" type="number" step="0.01" placeholder="0"></label>
+          <label class="f">Unit<input id="mi_unit" placeholder="plate / pc / kg"></label>
+          <label class="f">Opening Stock<input id="mi_stock" type="number" placeholder="0"></label>
+          <label class="f">Reorder Level<input id="mi_reorder" type="number" placeholder="5"></label>
+          <label class="f">HSN/SAC Code<input id="mi_hsn" placeholder="e.g. 996331"></label>
+          <button class="btn accent" onclick="addMenuItem()">+ Add Item</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h2 class="sectitle">Sabhi Menu Items</h2>
+        <table class="datatable" id="menuTable">
+          <thead><tr><th>Item</th><th>Category</th><th>HSN</th><th class="num">Price</th><th>Unit</th><th class="num">Stock</th><th class="num">Reorder</th><th style="width:150px;">Actions</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="view" id="view-stock">
+      <div class="panel">
+        <h2 class="sectitle">Stock Add Karein (Purchase Entry)</h2>
+        <div class="formgrid">
+          <label class="f">Item<select id="st_item"></select></label>
+          <label class="f">Quantity<input id="st_qty" type="number" placeholder="0"></label>
+          <label class="f">Note<input id="st_note" placeholder="e.g. Supplier name"></label>
+          <button class="btn accent" onclick="addStock()">+ Stock In</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h2 class="sectitle">Current Stock Status</h2>
+        <table class="datatable" id="stockTable"><thead><tr><th>Item</th><th class="num">Current Stock</th><th class="num">Reorder Level</th><th>Status</th></tr></thead><tbody></tbody></table>
+      </div>
+      <div class="panel">
+        <h2 class="sectitle">Recent Stock Movements</h2>
+        <table class="datatable" id="stockMoveTable"><thead><tr><th>Date</th><th>Item</th><th>Type</th><th class="num">Qty</th><th>Note</th></tr></thead><tbody></tbody></table>
+      </div>
+    </section>
+
+    <section class="view" id="view-rooms">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
+        <div style="display:flex;gap:14px;font-size:13px;color:var(--ink-soft);flex-wrap:wrap;">
+          <span>&#9679; <span style="color:var(--good)">Khaali / Ready</span></span>
+          <span>&#9679; <span style="color:var(--accent-deep)">Occupied</span></span>
+          <span>&#9679; <span style="color:#9B6B1F">Cleaning Pending</span></span>
+        </div>
+        <button class="btn ghost small" id="addRoomBtn" onclick="addRoomPrompt()">+ Naya Room</button>
+      </div>
+      <div class="tablegrid" id="roomGrid"></div>
+    </section>
+
+    <section class="view" id="view-reports">
+      <div class="report-filterbar">
+        <button class="btn ghost small" data-range="daily" onclick="setReportRange('daily')">Daily</button>
+        <button class="btn ghost small" data-range="monthly" onclick="setReportRange('monthly')">Monthly</button>
+        <button class="btn ghost small" data-range="yearly" onclick="setReportRange('yearly')">Yearly</button>
+        <span style="color:var(--ink-soft);font-size:12px;">ya custom range:</span>
+        <input type="date" id="rp_from">
+        <input type="date" id="rp_to">
+        <button class="btn ghost small" onclick="setReportRange('custom')">Apply</button>
+        <button class="btn ghost small" style="margin-left:auto;" onclick="printReportPDF()" title="Jo report tab neeche select hai (Item/Bill/GST/Customer/Room-wise), wahi print hogi">Print / PDF (Selected Tab)</button>
+        <button class="btn small" onclick="exportReportExcel()">Export Excel</button>
+      </div>
+      <div class="cardrow" id="reportStats"></div>
+      <div class="panel">
+        <h2 class="sectitle">Item-wise Sale Report</h2>
+        <table class="datatable" id="reportTable"><thead><tr><th>Item</th><th class="num">Qty Sold</th><th class="num">Revenue</th><th style="width:120px;">Share</th></tr></thead><tbody></tbody></table>
+      </div>
+      <div class="panel">
+        <h2 class="sectitle">Sabhi Bills (Range Ke Andar)</h2>
+        <table class="datatable" id="billsTable"><thead><tr><th>Bill #</th><th>Date</th><th>Table</th><th>Staff</th><th>Customer</th><th class="num">Amount</th><th>Payment</th><th style="width:190px;">Actions</th></tr></thead><tbody></tbody></table>
+      </div>
+    </section>
+
+    <section class="view" id="view-settings">
+      <div class="panel">
+        <h2 class="sectitle">Hotel Ki Jaankari (Bill Header Ke Liye)</h2>
+        <div class="formgrid">
+          <label class="f">Hotel / Restaurant Ka Naam<input id="set_name"></label>
+          <label class="f">GST Number<input id="set_gst" placeholder="e.g. 22AAAAA0000A1Z5"></label>
+          <label class="f">Address<input id="set_addr"></label>
+          <label class="f">Phone<input id="set_phone"></label>
+        </div>
+        <div style="margin-top:14px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+          <div>
+            <label class="f" style="margin-bottom:6px;">Hotel Logo (Bill Par Print Hoga)</label>
+            <input type="file" accept="image/*" onchange="uploadLogo(this)">
+          </div>
+          <div id="logoPreviewBox" style="display:none;">
+            <img id="logoPreview" style="height:60px;border:1px solid var(--line);border-radius:6px;padding:4px;background:#fff;">
+            <button class="btn danger small" style="margin-left:8px;" onclick="removeLogo()">Logo Hatayein</button>
+          </div>
+        </div>
+        <button class="btn accent" style="margin-top:14px;" onclick="saveBusinessInfo()">Save Karein</button>
+      </div>
+      <div class="panel">
+        <h2 class="sectitle">Theme Chunein</h2>
+        <div class="theme-row" id="themeRow"></div>
+      </div>
+      <div class="panel" id="cloudStatusPanel">
+        <h2 class="sectitle">Online Data Storage Status</h2>
+        <div id="cloudStatusBox"></div>
+      </div>
+      <div class="panel" id="backupPanel">
+        <h2 class="sectitle">Data Backup / Dusre Computer Pe Transfer</h2>
+        <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;">Yahan se poora data download karke kabhi bhi backup rakh sakte hain, ya dusre computer/browser par import kar sakte hain (agar Firebase connect nahi hai).</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+          <button class="btn accent" onclick="exportAllData()">Poora Data Download Karein</button>
+          <label class="btn ghost" style="cursor:pointer;">Doosre PC Ka Data Import Karein<input type="file" accept=".json" style="display:none" onchange="importAllDataFile(this)"></label>
+        </div>
+      </div>
+      <div class="panel" id="userMgmtPanel">
+        <h2 class="sectitle">User / Staff ID Management</h2>
+        <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-8px;">Master ID hi naye staff ID bana sakti hai aur unhe permission de sakti hai ki wo kaunse section use kar sakein. Note: ye password browser mein hi store hota hai, bahut sensitive password yahan na rakhein.</p>
+        <div class="formgrid" style="margin-bottom:14px;">
+          <label class="f">Username<input id="nu_username"></label>
+          <label class="f">Mobile Number (OTP ke liye)<input id="nu_mobile" placeholder="10 digit mobile"></label>
+          <label class="f">Password<input id="nu_password" type="text"></label>
+        </div>
+        <div class="permsline">
+          <label class="chk"><input type="checkbox" id="nu_tables" checked> Tables/KOT</label>
+          <label class="chk"><input type="checkbox" id="nu_menu" checked> Menu Items</label>
+          <label class="chk"><input type="checkbox" id="nu_stock" checked> Stock</label>
+          <label class="chk"><input type="checkbox" id="nu_rooms"> Rooms</label>
+          <label class="chk"><input type="checkbox" id="nu_reports"> Sale Reports</label>
+          <label class="chk"><input type="checkbox" id="nu_discount"> Discount Dene Ki Ijazat</label>
+        </div>
+        <label class="f" style="max-width:260px;margin-bottom:14px;">Max Discount Limit (%) - is se zyada discount ye staff nahi de payega<input id="nu_maxdisc" type="number" value="0" min="0" max="100" style="width:100%"></label>
+        <button class="btn accent" onclick="addUser()">+ Naya Staff ID Add Karein</button>
+        <table class="datatable" style="margin-top:16px;" id="usersTable">
+          <thead><tr><th>Username</th><th>Mobile</th><th>Role</th><th>Permissions</th><th style="width:170px;">Actions</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<div class="overlay" id="orderOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="orderModalTitle">Table</h3>
+      <button class="modal-close" onclick="closeOrderModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="order-layout">
+        <div>
+          <input class="menu-search" id="menuSearch" placeholder="Item khojein..." oninput="renderMenuPicker()">
+          <div class="cat-tabs" id="catTabs"></div>
+          <div class="menu-picker" id="menuPicker"></div>
+        </div>
+        <div>
+          <div class="ticket" id="ticketBox"></div>
+          <div id="billSection"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="roomOverlay">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-head">
+      <h3 id="roomModalTitle">Room</h3>
+      <button class="modal-close" onclick="closeRoomModal()">&times;</button>
+    </div>
+    <div class="modal-body" id="roomModalBody"></div>
+  </div>
+</div>
+
+<div class="overlay" id="formatOverlay">
+  <div class="modal" style="max-width:520px;">
+    <div class="modal-head">
+      <h3>Bill Format Chunein</h3>
+      <button class="modal-close" onclick="document.getElementById('formatOverlay').classList.remove('active')">&times;</button>
+    </div>
+    <div class="modal-body" id="formatModalBody"></div>
+  </div>
+</div>
+
+<script>
+/* ================================================================
+   FIREBASE CONFIG - PASTE YOUR OWN PROJECT CONFIG HERE
+   Firebase Console > Project Settings > General > Your apps > SDK setup and configuration > Config
+   Jab tak yahan sahi config nahi daalenge, app apne aap browser ke
+   localStorage mein data save karega (jo sirf usi browser/device tak
+   limited rehta hai). Sahi config daalte hi data Firestore (cloud)
+   mein online save hone lagega aur kisi bhi device se same data
+   dikhega, chahe browser cache/history clear ho jaye.
+   ================================================================ */
+const FIREBASE_CONFIG = {
+  apiKey: "PASTE_YOUR_API_KEY",
+  authDomain: "PASTE_YOUR_PROJECT.firebaseapp.com",
+  projectId: "PASTE_YOUR_PROJECT_ID",
+  storageBucket: "PASTE_YOUR_PROJECT.appspot.com",
+  messagingSenderId: "PASTE_YOUR_SENDER_ID",
+  appId: "PASTE_YOUR_APP_ID"
+};
+let firestoreDb = null;
+let firebaseReady = false;
+let clientId = '', clientKey = '';
+try{
+  const cfgLooksReal = FIREBASE_CONFIG.apiKey && !FIREBASE_CONFIG.apiKey.startsWith('PASTE_') && typeof firebase !== 'undefined';
+  if(cfgLooksReal){
+    firebase.initializeApp(FIREBASE_CONFIG);
+    firestoreDb = firebase.firestore();
+    firebaseReady = true;
+  }
+}catch(e){ console.error('Firebase init failed, falling back to localStorage', e); firebaseReady = false; }
+
+/* ---------------- STATE ---------------- */
+let items = [], tables = [], orders = [], sales = [], stockMoves = [];
+let users = [], settings = null;
+let rooms = [], bookings = [];
+let editingRoomId = null;
+let versions = {};
+let currentUser = null;
+let currentOrderId = null;
+let editingBillId = null, editingBillTemp = null;
+let editingMenuItemId = null;
+let editingUserId = null;
+let activeCategory = 'Sabhi';
+let reportRangeMode = 'daily';
+let reportFrom = null, reportTo = null;
+
+const KEYS = {
+  items:'hms_items', tables:'hms_tables', orders:'hms_orders', sales:'hms_sales',
+  stockMoves:'hms_stock_moves', users:'hms_users', settings:'hms_settings',
+  rooms:'hms_rooms', bookings:'hms_bookings'
+};
+
+const THEMES = {
+  saffron:{name:'Saffron', bg:'#FBF7EF', paper:'#FFFFFF', ink:'#16302B', inkSoft:'#4B615B', line:'#E4DCC8', lineSoft:'#EFE9D8', accent:'#E0932E', accentDeep:'#B5691A', accentBg:'#FBEBD3', sidebar:'#122A25', sidebarSoft:'#9FC4B9'},
+  royal:{name:'Royal Blue', bg:'#F5F6FA', paper:'#FFFFFF', ink:'#1B2A4A', inkSoft:'#51608A', line:'#DCE1EC', lineSoft:'#EAEEF7', accent:'#3E6AE1', accentDeep:'#28439C', accentBg:'#E4EBFC', sidebar:'#101A33', sidebarSoft:'#A9BEEA'},
+  maroon:{name:'Maroon', bg:'#FBF3EF', paper:'#FFFFFF', ink:'#3B1418', inkSoft:'#7A4F52', line:'#EBD9D4', lineSoft:'#F5E9E6', accent:'#B23B3B', accentDeep:'#7E2626', accentBg:'#F6DEDD', sidebar:'#2C0F12', sidebarSoft:'#DDB0AF'},
+  emerald:{name:'Emerald', bg:'#F3FAF6', paper:'#FFFFFF', ink:'#0E3B2E', inkSoft:'#3E6C5C', line:'#D9EFE3', lineSoft:'#E8F6EF', accent:'#1F9D66', accentDeep:'#136B45', accentBg:'#DDF3E7', sidebar:'#08261D', sidebarSoft:'#A9DCC3'},
+  midnight:{name:'Midnight Dark', bg:'#161A20', paper:'#1F252E', ink:'#EDEFF3', inkSoft:'#A8B0BE', line:'#333B47', lineSoft:'#2A303A', accent:'#E0932E', accentDeep:'#F2A94A', accentBg:'#3A2B14', sidebar:'#0D1015', sidebarSoft:'#8FA396'},
+  orchid:{name:'Plum Orchid', bg:'#FBF5FA', paper:'#FFFFFF', ink:'#3A1233', inkSoft:'#7A4C71', line:'#EEDCEA', lineSoft:'#F6EAF3', accent:'#A6408E', accentDeep:'#7A2B68', accentBg:'#F3DDEE', sidebar:'#2B0D26', sidebarSoft:'#D9AACE'},
+  teal:{name:'Ocean Teal', bg:'#F1FAFA', paper:'#FFFFFF', ink:'#0C3436', inkSoft:'#3E6D6F', line:'#D6EEEE', lineSoft:'#E7F6F6', accent:'#159A9C', accentDeep:'#0E6E70', accentBg:'#D6F1F1', sidebar:'#062526', sidebarSoft:'#9FD4D4'}
+};
+
+function isMaster(){ return !!(currentUser && currentUser.role==='master'); }
+function canDiscount(){ return !!(currentUser && (currentUser.role==='master' || (currentUser.permissions && currentUser.permissions.discount))); }
+function maxDiscountAllowed(){
+  if(!currentUser) return 0;
+  if(currentUser.role==='master') return 100;
+  if(!currentUser.permissions || !currentUser.permissions.discount) return 0;
+  return currentUser.maxDiscountPct || 0;
+}
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function money(n){ return 'Rs ' + Math.round(Number(n)||0); }
+function todayISO(){ const d=new Date(); return d.toISOString().slice(0,10); }
+
+function applyTheme(key){
+  const t = THEMES[key] || THEMES.saffron;
+  const r = document.documentElement.style;
+  r.setProperty('--bg', t.bg); r.setProperty('--paper', t.paper); r.setProperty('--ink', t.ink);
+  r.setProperty('--ink-soft', t.inkSoft); r.setProperty('--line', t.line); r.setProperty('--line-soft', t.lineSoft);
+  r.setProperty('--accent', t.accent); r.setProperty('--accent-deep', t.accentDeep); r.setProperty('--accent-bg', t.accentBg);
+  r.setProperty('--sidebar', t.sidebar); r.setProperty('--sidebar-soft', t.sidebarSoft);
+}
+
+/* ---------------- STORAGE ----------------
+   Priority: Firestore (online, survives refresh/reinstall/device change)
+   Fallback: browser localStorage (only works on the same browser/device)
+------------------------------------------------------------------- */
+const FIRESTORE_COLLECTION = 'hotel_data';
+
+async function storeGet(key){
+  const fullKey = (clientId ? clientId+'__' : '') + key;
+  if(firebaseReady){
+    const doc = await firestoreDb.collection(FIRESTORE_COLLECTION).doc(fullKey).get();
+    if(!doc.exists) throw new Error('not found: '+fullKey);
+    return {value: doc.data().value, version: 'firestore'};
+  }
+  const v = localStorage.getItem(fullKey);
+  if(v===null) throw new Error('not found: '+fullKey);
+  return {value:v, version:'local'};
+}
+async function storeSet(key, value){
+  const fullKey = (clientId ? clientId+'__' : '') + key;
+  if(firebaseReady){
+    await firestoreDb.collection(FIRESTORE_COLLECTION).doc(fullKey).set({value, updatedAt: new Date().toISOString()});
+    return 'firestore';
+  }
+  localStorage.setItem(fullKey, value);
+  return 'local';
+}
+async function clientMetaGet(cid){
+  if(firebaseReady){
+    const doc = await firestoreDb.collection(FIRESTORE_COLLECTION).doc(cid+'__meta').get();
+    return doc.exists ? doc.data() : null;
+  }
+  try{
+    const raw = localStorage.getItem('hms_client_meta_'+cid);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){ return null; }
+}
+async function clientMetaSet(cid, data){
+  if(firebaseReady){
+    await firestoreDb.collection(FIRESTORE_COLLECTION).doc(cid+'__meta').set(data);
+  } else {
+    try{ localStorage.setItem('hms_client_meta_'+cid, JSON.stringify(data)); }catch(e){}
+  }
+}
+
+async function loadState(){
+  const seedItems = [
+    {id:uid(),name:'Paneer Butter Masala',cat:'Main Course',price:220,unit:'plate',stock:30,reorder:5},
+    {id:uid(),name:'Dal Tadka',cat:'Main Course',price:140,unit:'plate',stock:40,reorder:5},
+    {id:uid(),name:'Butter Naan',cat:'Bread',price:35,unit:'pc',stock:100,reorder:15},
+    {id:uid(),name:'Veg Biryani',cat:'Rice',price:180,unit:'plate',stock:25,reorder:5},
+    {id:uid(),name:'Masala Chai',cat:'Beverage',price:25,unit:'cup',stock:200,reorder:20},
+    {id:uid(),name:'Gulab Jamun',cat:'Dessert',price:60,unit:'plate',stock:20,reorder:5},
+  ];
+  const seedTables = [1,2,3,4,5,6].map(n=>({id:uid(),name:'Table '+n,status:'free',orderId:null}));
+  const seedRooms = [101,102,103,201,202].map(n=>({id:uid(),roomNo:String(n),type:'Standard',rate:1500,status:'vacant',currentBookingId:null}));
+
+  async function loadOne(name, key, seed){
+    try{
+      const r = await storeGet(key);
+      versions[name] = r.version;
+      return JSON.parse(r.value);
+    }catch(e){
+      const v = await storeSet(key, JSON.stringify(seed));
+      versions[name] = v;
+      return seed;
+    }
+  }
+  items = await loadOne('items', KEYS.items, seedItems);
+  tables = await loadOne('tables', KEYS.tables, seedTables);
+  orders = await loadOne('orders', KEYS.orders, []);
+  sales = await loadOne('sales', KEYS.sales, []);
+  stockMoves = await loadOne('stockMoves', KEYS.stockMoves, []);
+  users = await loadOne('users', KEYS.users, []);
+  settings = await loadOne('settings', KEYS.settings, {hotelName:'', gstNo:'', address:'', phone:'', theme:'saffron', logo:''});
+  rooms = await loadOne('rooms', KEYS.rooms, seedRooms);
+  bookings = await loadOne('bookings', KEYS.bookings, []);
+
+  /* --- Data repair: fix legacy bookings saved before ratePerNight/amount fields existed --- */
+  let bookingsFixed = false;
+  bookings.forEach(b=>{
+    if(!b.ratePerNight || isNaN(b.ratePerNight)){
+      const rm = rooms.find(x=>x.id===b.roomId || x.roomNo===b.roomNo);
+      b.ratePerNight = (rm && rm.rate) ? rm.rate : (b.roomTotal && b.nights ? b.roomTotal/b.nights : 0);
+      bookingsFixed = true;
+    }
+    if(!b.services) b.services = [];
+    if(b.status==='closed' && (b.grandTotal===undefined || isNaN(b.grandTotal) || b.grandTotal===0) && b.roomTotal){
+      const chargeBase = (b.roomTotal||0) + (b.servicesTotal||0);
+      const taxAmt = chargeBase*(b.taxPct||0)/100;
+      const disc = b.discount||0;
+      const grandRaw = Math.max(0, chargeBase+taxAmt-disc);
+      b.grandTotal = Math.round(grandRaw);
+      b.taxAmt = taxAmt;
+      bookingsFixed = true;
+    }
+  });
+  if(bookingsFixed){ await persist('bookings'); }
+}
+
+async function persist(key){
+  const map = {items, tables, orders, sales, stockMoves, users, settings, rooms, bookings};
+  try{
+    const v = await storeSet(KEYS[key], JSON.stringify(map[key]));
+    versions[key] = v;
+  }catch(e){ console.error('save failed', key, e); }
+}
+
+/* ---------------- CLIENT (RESTAURANT TENANT) GATE ---------------- */
+function renderClientGate(mode){
+  mode = mode || 'choose';
+  const overlay = document.getElementById('authOverlay');
+  overlay.classList.remove('hidden');
+  if(mode==='choose'){
+    document.getElementById('authTitle').textContent = 'Restaurant Client Access';
+    document.getElementById('authSub').textContent = 'Ye software kai alag-alag restaurants ke liye use ho sakta hai. Har restaurant ka data alag rakhne ke liye pehle Client ID batayein.';
+    document.getElementById('authBody').innerHTML = `
+      <button class="btn accent" style="width:100%;margin-bottom:8px;" onclick="renderClientGate('register')">Naya Restaurant Register Karein</button>
+      <button class="btn ghost" style="width:100%;" onclick="renderClientGate('login')">Pehle Se Bane Client ID Se Login Karein</button>
+    `;
+  } else if(mode==='register'){
+    document.getElementById('authTitle').textContent = 'Naya Restaurant Register Karein';
+    document.getElementById('authSub').textContent = 'Client ID is restaurant ki pehchaan hai - isi se aapka data doosre restaurants ke data se alag rehta hai.';
+    document.getElementById('authBody').innerHTML = `
+      <label class="f">Client ID (jaise: sharma-hotel-jaipur)<input id="cg_id" style="width:100%"></label>
+      <label class="f">Password Key Banayein<input id="cg_key" type="text" style="width:100%"></label>
+      <div class="autherr" id="authErr"></div>
+      <button class="btn accent" style="width:100%;margin-top:6px;" onclick="submitClientRegister()">Register Karein &amp; Aage Badhein</button>
+      <div style="text-align:center;margin-top:12px;"><a href="#" style="font-size:12px;color:var(--ink-soft);" onclick="event.preventDefault();renderClientGate('choose');">Wapas Jayein</a></div>
+    `;
+  } else if(mode==='login'){
+    document.getElementById('authTitle').textContent = 'Client Login';
+    document.getElementById('authSub').textContent = 'Apna Client ID aur Password Key daalein.';
+    document.getElementById('authBody').innerHTML = `
+      <label class="f">Client ID<input id="cg_id2" style="width:100%"></label>
+      <label class="f">Password Key<input id="cg_key2" type="text" style="width:100%"></label>
+      <div class="autherr" id="authErr"></div>
+      <button class="btn accent" style="width:100%;margin-top:6px;" onclick="submitClientLogin()">Login Karein</button>
+      <div style="text-align:center;margin-top:12px;"><a href="#" style="font-size:12px;color:var(--ink-soft);" onclick="event.preventDefault();renderClientGate('choose');">Wapas Jayein</a></div>
+    `;
+  }
+}
+function sanitizeClientId(raw){
+  return raw.trim().toLowerCase().replace(/[^a-z0-9\-_]/g,'-').replace(/-+/g,'-');
+}
+async function submitClientRegister(){
+  const id = sanitizeClientId(document.getElementById('cg_id').value);
+  const key = document.getElementById('cg_key').value.trim();
+  if(!id || !key){ document.getElementById('authErr').textContent = 'Client ID aur Password Key dono bharein.'; return; }
+  const existing = await clientMetaGet(id);
+  if(existing){ document.getElementById('authErr').textContent = 'Ye Client ID pehle se registered hai. "Login" use karein ya alag ID chunein.'; return; }
+  await clientMetaSet(id, {passwordKey:key, createdAt:new Date().toISOString()});
+  clientId = id; clientKey = key;
+  try{ localStorage.setItem('hms_client_id', id); localStorage.setItem('hms_client_key', key); }catch(e){}
+  await continueBoot();
+}
+async function submitClientLogin(){
+  const id = sanitizeClientId(document.getElementById('cg_id2').value);
+  const key = document.getElementById('cg_key2').value.trim();
+  const existing = await clientMetaGet(id);
+  if(!existing || existing.passwordKey !== key){
+    document.getElementById('authErr').textContent = 'Client ID ya Password Key galat hai.';
+    return;
+  }
+  clientId = id; clientKey = key;
+  try{ localStorage.setItem('hms_client_id', id); localStorage.setItem('hms_client_key', key); }catch(e){}
+  await continueBoot();
+}
+function switchClient(){
+  if(!confirm('Kisi doosre Restaurant (Client ID) se login karna hai? Aap is Client se logout ho jayenge.')) return;
+  try{ localStorage.removeItem('hms_client_id'); localStorage.removeItem('hms_client_key'); }catch(e){}
+  clientId=''; clientKey=''; currentUser=null;
+  renderClientGate('choose');
+}
+async function continueBoot(){
+  await loadState();
+  tickClock();
+  applyTheme(settings.theme || 'saffron');
+  updateBrand();
+  let sessionUserId = null;
+  try{ sessionUserId = localStorage.getItem('hms_session_user_id_'+clientId); }catch(e){}
+  const sessionUser = sessionUserId ? users.find(u=>u.id===sessionUserId) : null;
+  if(sessionUser){ currentUser = sessionUser; enterApp(); }
+  else { renderAuthScreen(); }
+}
+
+/* ---------------- AUTH ---------------- */
+let fpStage = null, fpUser = null, fpOtp = null;
+function renderAuthScreen(){
+  const overlay = document.getElementById('authOverlay');
+  overlay.classList.remove('hidden');
+  fpStage = null; fpUser = null; fpOtp = null;
+  if(users.length===0){
+    document.getElementById('authTitle').textContent = 'Master ID Setup';
+    document.getElementById('authSub').textContent = 'Software shuru karne ke liye pehle Hotel details aur Master ID banayein.';
+    document.getElementById('authBody').innerHTML = `
+      <label class="f">Hotel / Restaurant Ka Naam<input id="su_hotel" placeholder="e.g. Anaaj Bhawan"></label>
+      <label class="f">GST Number (optional)<input id="su_gst" placeholder="e.g. 22AAAAA0000A1Z5"></label>
+      <label class="f">Master Username<input id="su_user" placeholder="e.g. admin"></label>
+      <label class="f">Master Mobile Number<input id="su_mobile" placeholder="10 digit mobile"></label>
+      <label class="f">Master Password<input id="su_pass" type="text"></label>
+      <div class="autherr" id="authErr"></div>
+      <button class="btn accent" style="width:100%;margin-top:6px;" onclick="submitSetup()">Master ID Banayein & Shuru Karein</button>
+    `;
+  } else {
+    document.getElementById('authTitle').textContent = 'Login Karein';
+    document.getElementById('authSub').textContent = 'Apni User ID aur Password daalein.';
+    document.getElementById('authBody').innerHTML = `
+      <label class="f">Username<input id="li_user"></label>
+      <label class="f">Password<input id="li_pass" type="text"></label>
+      <div class="autherr" id="authErr"></div>
+      <button class="btn accent" style="width:100%;margin-top:6px;" onclick="submitLogin()">Login</button>
+      <button class="btn ghost" style="width:100%;margin-top:8px;" onclick="startForgotPassword()">Password Bhool Gaye? (OTP Se Reset Karein)</button>
+    `;
+  }
+}
+async function submitSetup(){
+  const hotel = document.getElementById('su_hotel').value.trim();
+  const gst = document.getElementById('su_gst').value.trim();
+  const uname = document.getElementById('su_user').value.trim();
+  const mobile = document.getElementById('su_mobile').value.trim();
+  const upass = document.getElementById('su_pass').value;
+  if(!hotel || !uname || !upass || !mobile){
+    document.getElementById('authErr').textContent = 'Sabhi zaroori fields bharein (mobile number bhi zaroori hai).';
+    return;
+  }
+  if(!/^[0-9]{10}$/.test(mobile)){
+    document.getElementById('authErr').textContent = 'Mobile number 10 digit ka hona chahiye.';
+    return;
+  }
+  settings.hotelName = hotel; settings.gstNo = gst; settings.theme = 'saffron';
+  await persist('settings');
+  const master = {id:uid(), username:uname, mobile, password:upass, role:'master', permissions:{tables:true,menu:true,stock:true,rooms:true,reports:true,settings:true,discount:true}};
+  users.push(master);
+  await persist('users');
+  currentUser = master;
+  saveSession(master.id);
+  enterApp();
+}
+async function submitLogin(){
+  const uname = document.getElementById('li_user').value.trim();
+  const upass = document.getElementById('li_pass').value;
+  const u = users.find(x=>x.username===uname && x.password===upass);
+  if(!u){
+    document.getElementById('authErr').textContent = 'Username ya password galat hai.';
+    return;
+  }
+  currentUser = u;
+  saveSession(u.id);
+  enterApp();
+}
+function saveSession(userId){
+  try{ localStorage.setItem('hms_session_user_id_'+clientId, userId); }catch(e){}
+}
+function clearSession(){
+  try{ localStorage.removeItem('hms_session_user_id_'+clientId); }catch(e){}
+}
+function logout(){
+  currentUser = null;
+  clearSession();
+  document.getElementById('authOverlay').classList.remove('hidden');
+  renderAuthScreen();
+}
+
+/* ---- Forgot Password via Mobile OTP ---- */
+function startForgotPassword(){
+  fpStage = 'identify';
+  document.getElementById('authTitle').textContent = 'Password Reset';
+  document.getElementById('authSub').textContent = 'Apna username aur registered mobile number daalein, OTP bheja jayega.';
+  document.getElementById('authBody').innerHTML = `
+    <label class="f">Username<input id="fp_user"></label>
+    <label class="f">Registered Mobile Number<input id="fp_mobile" placeholder="10 digit mobile"></label>
+    <div class="autherr" id="authErr"></div>
+    <button class="btn accent" style="width:100%;margin-top:6px;" onclick="sendResetOtp()">OTP Bhejein</button>
+    <button class="btn ghost" style="width:100%;margin-top:8px;" onclick="renderAuthScreen()">Wapas Login Par Jayein</button>
+  `;
+}
+function sendResetOtp(){
+  const uname = document.getElementById('fp_user').value.trim();
+  const mobile = document.getElementById('fp_mobile').value.trim();
+  const u = users.find(x=>x.username===uname && x.mobile===mobile);
+  if(!u){
+    document.getElementById('authErr').textContent = 'Ye username aur mobile number match nahi kar rahe.';
+    return;
+  }
+  fpUser = u;
+  fpOtp = String(Math.floor(100000 + Math.random()*900000));
+  fpStage = 'otp';
+  document.getElementById('authTitle').textContent = 'OTP Verify Karein';
+  document.getElementById('authSub').textContent = 'Note: Is demo/offline software mein real SMS gateway connect nahi hai, isliye OTP neeche hi dikhaya gaya hai. Real SMS ke liye ek SMS/OTP provider (jaise Twilio/MSG91) backend se jodna hoga.';
+  document.getElementById('authBody').innerHTML = `
+    <div class="billbox" style="margin-bottom:12px;">
+      <div style="font-size:12px;color:var(--ink-soft);">Aapka OTP (simulate) hai:</div>
+      <div style="font-family:var(--mono);font-size:22px;font-weight:700;letter-spacing:.1em;">${fpOtp}</div>
+    </div>
+    <label class="f">OTP Daalein<input id="fp_otp_input" placeholder="6 digit OTP"></label>
+    <label class="f">Naya Password<input id="fp_newpass" type="text"></label>
+    <div class="autherr" id="authErr"></div>
+    <button class="btn accent" style="width:100%;margin-top:6px;" onclick="confirmResetOtp()">Password Reset Karein</button>
+    <button class="btn ghost" style="width:100%;margin-top:8px;" onclick="renderAuthScreen()">Cancel</button>
+  `;
+}
+async function confirmResetOtp(){
+  const enteredOtp = document.getElementById('fp_otp_input').value.trim();
+  const newPass = document.getElementById('fp_newpass').value;
+  if(enteredOtp !== fpOtp){
+    document.getElementById('authErr').textContent = 'OTP galat hai.';
+    return;
+  }
+  if(!newPass){
+    document.getElementById('authErr').textContent = 'Naya password daalein.';
+    return;
+  }
+  fpUser.password = newPass;
+  await persist('users');
+  alert('Password reset ho gaya. Ab naye password se login karein.');
+  renderAuthScreen();
+}
+
+function enterApp(){
+  document.getElementById('authOverlay').classList.add('hidden');
+  if(currentUser.role==='master'){
+    const allKeys = ['tables','menu','stock','rooms','reports','settings','discount'];
+    currentUser.permissions = currentUser.permissions || {};
+    let changed = false;
+    allKeys.forEach(k=>{ if(!currentUser.permissions[k]){ currentUser.permissions[k]=true; changed=true; } });
+    if(changed) persist('users');
+  }
+  applyTheme(settings.theme || 'saffron');
+  updateBrand();
+  buildNav();
+  document.getElementById('whoBox').textContent = currentUser.username + ' (' + (currentUser.role==='master'?'Master':'Staff') + ')';
+  showView('dashboard');
+}
+function updateBrand(){
+  const logoHtml = settings.logo ? `<img src="${settings.logo}" style="height:30px;border-radius:4px;margin-bottom:6px;display:block;">` : '';
+  document.getElementById('brandBox').innerHTML = logoHtml + (settings.hotelName || 'Hotel Name') +
+    '<small>' + (settings.gstNo ? 'GSTIN: '+settings.gstNo : 'Hotel & Restaurant') + '</small>';
+}
+
+/* ---------------- NAV ---------------- */
+const NAV_ITEMS = [
+  {key:'dashboard', label:'Dashboard', ico:'&#9737;', perm:null},
+  {key:'tables', label:'Tables / KOT', ico:'&#9974;', perm:'tables'},
+  {key:'menu', label:'Menu Items', ico:'&#9776;', perm:'menu'},
+  {key:'stock', label:'Stock', ico:'&#9670;', perm:'stock'},
+  {key:'rooms', label:'Front Office / Rooms', ico:'&#8962;', perm:'rooms'},
+  {key:'reports', label:'Sale Reports', ico:'&#9776;', perm:'reports'},
+  {key:'settings', label:'Settings', ico:'&#9881;', perm:'settings'},
+];
+function buildNav(){
+  const nav = document.getElementById('navlist');
+  const allowed = NAV_ITEMS.filter(n => !n.perm || isMaster() || (currentUser && currentUser.permissions && currentUser.permissions[n.perm]));
+  nav.innerHTML = allowed.map(n=>`<button class="navbtn" data-view="${n.key}" onclick="showView('${n.key}')"><span class="ico">${n.ico}</span><span class="label">${n.label}</span></button>`).join('');
+}
+function showView(v){
+  const allowed = NAV_ITEMS.some(n => n.key===v && (!n.perm || isMaster() || (currentUser.permissions && currentUser.permissions[n.perm])));
+  if(!allowed){ v = 'dashboard'; }
+  document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
+  document.getElementById('view-'+v).classList.add('active');
+  document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active', b.dataset.view===v));
+  const titles = {dashboard:'Dashboard', tables:'Tables / KOT', menu:'Menu Items', stock:'Stock Management', rooms:'Front Office - Rooms / Check-in / Check-out', reports:'Sale Reports', settings:'Settings'};
+  document.getElementById('viewTitle').textContent = titles[v];
+  if(v==='dashboard') renderDashboard();
+  if(v==='tables') renderTables();
+  if(v==='menu') renderMenu();
+  if(v==='stock') renderStock();
+  if(v==='rooms') renderRooms();
+  if(v==='reports') renderReports();
+  if(v==='settings') renderSettings();
+}
+function tickClock(){
+  const d = new Date();
+  document.getElementById('clock').textContent = d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) + '  ' + d.toLocaleTimeString('en-IN');
+}
+setInterval(tickClock, 1000);
+
+/* ---------------- SETTINGS ---------------- */
+function renderSettings(){
+  document.getElementById('set_name').value = settings.hotelName || '';
+  document.getElementById('set_gst').value = settings.gstNo || '';
+  document.getElementById('set_addr').value = settings.address || '';
+  document.getElementById('set_phone').value = settings.phone || '';
+
+  if(settings.logo){
+    document.getElementById('logoPreviewBox').style.display = 'block';
+    document.getElementById('logoPreview').src = settings.logo;
+  } else {
+    document.getElementById('logoPreviewBox').style.display = 'none';
+  }
+
+  document.getElementById('themeRow').innerHTML = Object.keys(THEMES).map(k=>{
+    const t = THEMES[k];
+    const isActive = (settings.theme||'saffron')===k;
+    return `<button class="theme-swatch ${isActive?'active':''}" onclick="chooseTheme('${k}')">
+      <div class="sw-top">
+        <div class="sw-bg" style="background:linear-gradient(135deg, ${t.sidebar} 0%, ${t.sidebar} 45%, ${t.bg} 45%, ${t.bg} 100%);"></div>
+        <div class="sw-dot" style="background:${t.accent};"></div>
+        <div class="sw-accentbar" style="background:${t.accent};"></div>
+        <div class="sw-check">&#10003;</div>
+      </div>
+      <div class="sw-label">${t.name}</div>
+    </button>`;
+  }).join('');
+
+  document.getElementById('userMgmtPanel').style.display = isMaster() ? 'block' : 'none';
+  document.getElementById('backupPanel').style.display = isMaster() ? 'block' : 'none';
+  if(isMaster()) renderUsers();
+
+  const statusBox = document.getElementById('cloudStatusBox');
+  if(statusBox){
+    if(firebaseReady){
+      statusBox.innerHTML = `<div style="display:flex;align-items:center;gap:8px;">
+        <span class="pill good">Firebase Connected</span>
+        <span style="font-size:12.5px;color:var(--ink-soft);">Aapka data ab online (Firestore) mein save ho raha hai — kisi bhi device se same data dikhega, browser data clear hone par bhi kuch nahi jayega.</span>
+      </div>`;
+    } else {
+      statusBox.innerHTML = `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span class="pill warn">Local Storage Mode (Firebase Not Connected)</span>
+        <span style="font-size:12.5px;color:var(--ink-soft);">Data abhi is browser/device mein hi save ho raha hai. Online rakhne ke liye HTML file ke andar FIREBASE_CONFIG mein apna Firebase project ki details daalein (Master ID se GitHub par developer se karwa sakte hain), phir dobara publish karein.</span>
+      </div>`;
+    }
+  }
+}
+async function saveBusinessInfo(){
+  if(!isMaster()){ alert('Sirf Master ID hotel ki jaankari/theme/logo edit kar sakti hai.'); return; }
+  settings.hotelName = document.getElementById('set_name').value.trim();
+  settings.gstNo = document.getElementById('set_gst').value.trim();
+  settings.address = document.getElementById('set_addr').value.trim();
+  settings.phone = document.getElementById('set_phone').value.trim();
+  await persist('settings');
+  updateBrand();
+  alert('Hotel ki jaankari save ho gayi.');
+}
+function uploadLogo(input){
+  if(!isMaster()){ alert('Sirf Master ID logo add kar sakti hai.'); return; }
+  const file = input.files[0];
+  if(!file) return;
+  if(file.size > 900000){ alert('Logo image chhoti size ki rakhein (900KB se kam).'); return; }
+  const reader = new FileReader();
+  reader.onload = async function(e){
+    settings.logo = e.target.result;
+    await persist('settings');
+    renderSettings();
+  };
+  reader.readAsDataURL(file);
+}
+async function removeLogo(){
+  if(!isMaster()){ alert('Sirf Master ID logo hata sakti hai.'); return; }
+  settings.logo = '';
+  await persist('settings');
+  renderSettings();
+}
+function exportAllData(){
+  if(!isMaster()){ alert('Sirf Master ID data export kar sakti hai.'); return; }
+  const payload = {items, tables, orders, sales, stockMoves, users, settings, rooms, bookings, exportedAt:new Date().toISOString()};
+  const blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'hotel-data-backup-'+todayISO()+'.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+async function importAllDataFile(input){
+  if(!isMaster()){ alert('Sirf Master ID data import kar sakti hai.'); return; }
+  const file = input.files[0];
+  if(!file) return;
+  if(!confirm('Import karne se is computer ka current data replace ho jayega. Continue karein?')) return;
+  try{
+    const text = await file.text();
+    const payload = JSON.parse(text);
+    items = payload.items || items;
+    tables = payload.tables || tables;
+    orders = payload.orders || orders;
+    sales = payload.sales || sales;
+    stockMoves = payload.stockMoves || stockMoves;
+    users = payload.users || users;
+    settings = payload.settings || settings;
+    rooms = payload.rooms || rooms;
+    bookings = payload.bookings || bookings;
+    await persist('items'); await persist('tables'); await persist('orders'); await persist('sales');
+    await persist('stockMoves'); await persist('users'); await persist('settings'); await persist('rooms'); await persist('bookings');
+    alert('Data import ho gaya. Page refresh ho raha hai.');
+    location.reload();
+  }catch(e){ alert('Ye file sahi format mein nahi hai.'); }
+}
+async function chooseTheme(key){
+  settings.theme = key;
+  await persist('settings');
+  applyTheme(key);
+  renderSettings();
+}
+function renderUsers(){
+  const tbody = document.querySelector('#usersTable tbody');
+  tbody.innerHTML = users.map(u=>{
+    if(editingUserId===u.id){
+      return `<tr class="userrow-edit">
+        <td>${u.username}</td>
+        <td><input id="eu_mobile" value="${u.mobile||''}" style="width:110px"></td>
+        <td>${u.role==='master'?'Master':'Staff'}</td>
+        <td colspan="2">
+          <div class="permsline">
+            <label class="chk"><input type="checkbox" id="eu_tables" ${u.permissions.tables?'checked':''}> Tables/KOT</label>
+            <label class="chk"><input type="checkbox" id="eu_menu" ${u.permissions.menu?'checked':''}> Menu</label>
+            <label class="chk"><input type="checkbox" id="eu_stock" ${u.permissions.stock?'checked':''}> Stock</label>
+            <label class="chk"><input type="checkbox" id="eu_rooms" ${u.permissions.rooms?'checked':''}> Rooms</label>
+            <label class="chk"><input type="checkbox" id="eu_reports" ${u.permissions.reports?'checked':''}> Reports</label>
+            <label class="chk"><input type="checkbox" id="eu_discount" ${u.permissions.discount?'checked':''}> Discount Dene Ki Ijazat</label>
+          </div>
+          <label class="f" style="max-width:220px;">Max Discount Limit (%)<input id="eu_maxdisc" type="number" min="0" max="100" value="${u.maxDiscountPct||0}" style="width:100%"></label>
+          <label class="f" style="max-width:220px;">Naya Password (khaali chodein agar badalna nahi)<input id="eu_pass" type="text"></label>
+          <div style="margin-top:8px;display:flex;gap:8px;">
+            <button class="btn accent small" onclick="saveUserEdit('${u.id}')">Save</button>
+            <button class="btn ghost small" onclick="editingUserId=null;renderUsers();">Cancel</button>
+          </div>
+        </td>
+      </tr>`;
+    }
+    const permsLabel = u.role==='master' ? 'Sabhi (Master) - Unlimited Discount' :
+      (Object.entries(u.permissions).filter(([k,v])=>v && k!=='settings').map(([k])=>k).join(', ') || 'Koi nahi') + (u.permissions.discount ? ' (Max Discount: '+(u.maxDiscountPct||0)+'%)' : '');
+    return `<tr>
+      <td>${u.username}</td>
+      <td>${u.mobile||'-'}</td>
+      <td>${u.role==='master' ? '<span class="pill warn">Master</span>' : '<span class="pill good">Staff</span>'}</td>
+      <td style="font-size:12px;">${permsLabel}</td>
+      <td>
+        <button class="btn ghost small" onclick="editingUserId='${u.id}';renderUsers();">Edit</button>
+        ${u.role!=='master' ? `<button class="btn danger small" onclick="deleteUser('${u.id}')">Delete</button>` : ''}
+      </td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="5" class="empty-hint">Koi staff ID nahi hai.</td></tr>`;
+}
+async function addUser(){
+  const uname = document.getElementById('nu_username').value.trim();
+  const mobile = document.getElementById('nu_mobile').value.trim();
+  const upass = document.getElementById('nu_password').value;
+  if(!uname || !upass){ alert('Username aur password daalein'); return; }
+  if(!mobile || !/^[0-9]{10}$/.test(mobile)){ alert('Sahi 10 digit mobile number daalein (OTP/Forgot Password ke liye zaroori hai)'); return; }
+  if(users.some(u=>u.username===uname)){ alert('Ye username pehle se hai'); return; }
+  const perms = {
+    tables: document.getElementById('nu_tables').checked,
+    menu: document.getElementById('nu_menu').checked,
+    stock: document.getElementById('nu_stock').checked,
+    rooms: document.getElementById('nu_rooms').checked,
+    reports: document.getElementById('nu_reports').checked,
+    discount: document.getElementById('nu_discount').checked,
+    settings: false
+  };
+  const maxDiscountPct = Math.max(0, Math.min(100, parseFloat(document.getElementById('nu_maxdisc').value) || 0));
+  users.push({id:uid(), username:uname, mobile, password:upass, role:'staff', permissions:perms, maxDiscountPct});
+  await persist('users');
+  document.getElementById('nu_username').value=''; document.getElementById('nu_mobile').value=''; document.getElementById('nu_password').value=''; document.getElementById('nu_maxdisc').value='0';
+  renderUsers();
+}
+async function saveUserEdit(id){
+  const u = users.find(x=>x.id===id);
+  if(!u) return;
+  u.permissions.tables = document.getElementById('eu_tables').checked;
+  u.permissions.menu = document.getElementById('eu_menu').checked;
+  u.permissions.stock = document.getElementById('eu_stock').checked;
+  u.permissions.rooms = document.getElementById('eu_rooms').checked;
+  u.permissions.reports = document.getElementById('eu_reports').checked;
+  u.permissions.discount = document.getElementById('eu_discount').checked;
+  const newMaxDisc = document.getElementById('eu_maxdisc').value;
+  if(newMaxDisc !== '') u.maxDiscountPct = Math.max(0, Math.min(100, parseFloat(newMaxDisc)||0));
+  const newMobile = document.getElementById('eu_mobile').value.trim();
+  if(newMobile) u.mobile = newMobile;
+  const newPass = document.getElementById('eu_pass').value;
+  if(newPass) u.password = newPass;
+  editingUserId = null;
+  await persist('users');
+  renderUsers();
+}
+async function deleteUser(id){
+  if(!confirm('Ye staff ID delete karni hai?')) return;
+  users = users.filter(u=>u.id!==id);
+  await persist('users');
+  renderUsers();
+}
+
+/* ---------------- MENU ITEMS ---------------- */
+async function addMenuItem(){
+  const name = document.getElementById('mi_name').value.trim();
+  const cat = document.getElementById('mi_cat').value.trim() || 'General';
+  const price = parseFloat(document.getElementById('mi_price').value) || 0;
+  const unit = document.getElementById('mi_unit').value.trim() || 'pc';
+  const stock = parseFloat(document.getElementById('mi_stock').value) || 0;
+  const reorder = parseFloat(document.getElementById('mi_reorder').value) || 5;
+  const hsn = document.getElementById('mi_hsn').value.trim();
+  if(!name){ alert('Item ka naam daalein'); return; }
+  items.push({id:uid(), name, cat, price, unit, stock, reorder, hsn});
+  await persist('items');
+  ['mi_name','mi_cat','mi_price','mi_unit','mi_stock','mi_reorder','mi_hsn'].forEach(id=>document.getElementById(id).value='');
+  renderMenu();
+}
+async function deleteMenuItem(id){
+  if(!isMaster()){ alert('Sirf Master ID hi item delete kar sakti hai.'); return; }
+  if(!confirm('Ye item delete karna hai?')) return;
+  items = items.filter(i=>i.id!==id);
+  await persist('items');
+  renderMenu();
+}
+function startEditMenuItem(id){
+  if(!isMaster()){ alert('Sirf Master ID hi item rate/details edit kar sakti hai.'); return; }
+  editingMenuItemId = id; renderMenu();
+}
+function cancelEditMenuItem(){ editingMenuItemId = null; renderMenu(); }
+async function saveMenuItem(id){
+  if(!isMaster()){ alert('Sirf Master ID hi item rate/details edit kar sakti hai.'); return; }
+  const item = items.find(i=>i.id===id);
+  if(!item) return;
+  item.name = document.getElementById('edit_name_'+id).value.trim() || item.name;
+  item.cat = document.getElementById('edit_cat_'+id).value.trim() || item.cat;
+  item.price = parseFloat(document.getElementById('edit_price_'+id).value) || 0;
+  item.unit = document.getElementById('edit_unit_'+id).value.trim() || item.unit;
+  item.stock = parseFloat(document.getElementById('edit_stock_'+id).value) || 0;
+  item.reorder = parseFloat(document.getElementById('edit_reorder_'+id).value) || item.reorder;
+  item.hsn = document.getElementById('edit_hsn_'+id).value.trim();
+  editingMenuItemId = null;
+  await persist('items');
+  renderMenu();
+}
+function renderMenu(){
+  const tbody = document.querySelector('#menuTable tbody');
+  tbody.innerHTML = items.map(i=>{
+    if(editingMenuItemId===i.id){
+      return `<tr>
+        <td><input id="edit_name_${i.id}" value="${i.name}" style="width:100%"></td>
+        <td><input id="edit_cat_${i.id}" value="${i.cat}" style="width:100%"></td>
+        <td><input id="edit_hsn_${i.id}" value="${i.hsn||''}" style="width:80px"></td>
+        <td><input id="edit_price_${i.id}" type="number" step="0.01" value="${i.price}" style="width:80px"></td>
+        <td><input id="edit_unit_${i.id}" value="${i.unit}" style="width:70px"></td>
+        <td><input id="edit_stock_${i.id}" type="number" value="${i.stock}" style="width:70px"></td>
+        <td><input id="edit_reorder_${i.id}" type="number" value="${i.reorder}" style="width:60px"></td>
+        <td>
+          <button class="btn accent small" onclick="saveMenuItem('${i.id}')">Save</button>
+          <button class="btn ghost small" onclick="cancelEditMenuItem()">Cancel</button>
+        </td>
+      </tr>`;
+    }
+    return `<tr>
+      <td>${i.name}</td><td>${i.cat}</td><td>${i.hsn||'-'}</td><td class="num">${money(i.price)}</td><td>${i.unit}</td>
+      <td class="num">${i.stock}</td><td class="num">${i.reorder}</td>
+      <td>
+        ${isMaster() ? `<button class="btn ghost small" onclick="startEditMenuItem('${i.id}')">Edit</button>
+        <button class="btn danger small" onclick="deleteMenuItem('${i.id}')">Delete</button>` : `<span style="color:var(--ink-soft);font-size:12px;">Master hi edit/delete kar sakti hai</span>`}
+      </td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="8" class="empty-hint">Koi item nahi hai. Upar se add karein.</td></tr>`;
+}
+
+/* ---------------- TABLES / KOT ---------------- */
+async function addTablePrompt(){
+  const name = prompt('Naye table ka naam:', 'Table '+(tables.length+1));
+  if(!name) return;
+  tables.push({id:uid(), name, status:'free', orderId:null});
+  await persist('tables');
+  renderTables();
+}
+async function renameTable(id){
+  if(!isMaster()){ alert('Sirf Master ID hi table edit kar sakti hai.'); return; }
+  const t = tables.find(x=>x.id===id);
+  if(!t) return;
+  const name = prompt('Table ka naya naam:', t.name);
+  if(!name) return;
+  t.name = name;
+  const order = orders.find(o=>o.id===t.orderId);
+  if(order) order.tableName = name;
+  await persist('tables');
+  if(order) await persist('orders');
+  renderTables();
+}
+async function deleteTable(id){
+  if(!isMaster()){ alert('Sirf Master ID hi table delete kar sakti hai.'); return; }
+  const t = tables.find(x=>x.id===id);
+  if(!t) return;
+  if(t.status!=='free'){ alert('Occupied table delete nahi ho sakta. Pehle bill banayein.'); return; }
+  if(!confirm('Ye table delete karna hai?')) return;
+  tables = tables.filter(x=>x.id!==id);
+  await persist('tables');
+  renderTables();
+}
+function renderTables(){
+  const grid = document.getElementById('tableGrid');
+  grid.innerHTML = tables.map(t=>{
+    const order = orders.find(o=>o.id===t.orderId);
+    const amt = order ? order.lines.reduce((s,l)=>s+l.qty*l.price,0) : 0;
+    const hasItems = order && order.lines.length>0;
+    const cardClass = t.status==='free' ? 'free' : (hasItems ? 'active' : 'occupied');
+    return `<div class="tablecard ${cardClass}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">
+        <div class="tname" style="cursor:pointer;" onclick="openTable('${t.id}')">${t.name}</div>
+        <div style="display:flex;gap:4px;">
+          ${isMaster() ? `<button class="ticon" title="Naam badlein" onclick="renameTable('${t.id}')">&#9998;</button>` : ''}
+          ${(isMaster() && t.status==='free') ? `<button class="ticon" title="Delete" onclick="deleteTable('${t.id}')">&times;</button>` : ''}
+        </div>
+      </div>
+      <div class="tstatus" style="cursor:pointer;" onclick="openTable('${t.id}')">${t.status==='free' ? 'Khaali' : (hasItems ? (order.kotSent ? 'KOT Bheji Gayi' : 'Order Chal Raha Hai') : 'Table Open - Item Add Karein')}</div>
+      ${t.status==='occupied' ? `<div class="tamount" style="cursor:pointer;" onclick="openTable('${t.id}')">${money(amt)}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+async function openRoomFoodOrder(bookingId){
+  const booking = bookings.find(b=>b.id===bookingId);
+  if(!booking) return;
+  const roomTag = 'ROOM-'+booking.id;
+  let order = orders.find(o=>o.tableId===roomTag);
+  if(!order){
+    order = {id:uid(), tableId:roomTag, tableName:'Room '+booking.roomNo+' - Fooding ('+booking.guestName+')', lines:[], createdAt:new Date().toISOString(), kotSent:false, staffName: currentUser.username, isRoomOrder:true, bookingId: booking.id};
+    orders.push(order);
+    await persist('orders');
+  }
+  currentOrderId = order.id;
+  editingBillId = null; editingBillTemp = null;
+  activeCategory = 'Sabhi';
+  document.getElementById('roomOverlay').classList.remove('active');
+  document.getElementById('menuSearch').value='';
+  document.getElementById('orderModalTitle').textContent = order.tableName;
+  document.getElementById('orderOverlay').classList.add('active');
+  renderMenuPicker();
+  renderTicket();
+  document.getElementById('billSection').innerHTML='';
+}
+async function openTable(tableId){
+  const t = tables.find(x=>x.id===tableId);
+  if(!t) return;
+  if(t.status==='free'){
+    const order = {id:uid(), tableId:t.id, tableName:t.name, lines:[], createdAt:new Date().toISOString(), kotSent:false, staffName: currentUser.username};
+    orders.push(order);
+    t.status='occupied'; t.orderId=order.id;
+    await persist('orders'); await persist('tables');
+    currentOrderId = order.id;
+  } else {
+    currentOrderId = t.orderId;
+  }
+  editingBillId = null; editingBillTemp = null;
+  activeCategory = 'Sabhi';
+  document.getElementById('menuSearch').value='';
+  document.getElementById('orderModalTitle').textContent = t.name;
+  document.getElementById('orderOverlay').classList.add('active');
+  renderMenuPicker();
+  renderTicket();
+  document.getElementById('billSection').innerHTML='';
+}
+async function quickPOSBill(){
+  const posNo = sales.filter(s=>s.tableName && s.tableName.startsWith('Counter Sale')).length + orders.filter(o=>o.tableName && o.tableName.startsWith('Counter Sale')).length + 1;
+  const order = {id:uid(), tableId:'POS-'+uid(), tableName:'Counter Sale #'+posNo, lines:[], createdAt:new Date().toISOString(), kotSent:false, staffName: currentUser.username, isPOS:true};
+  orders.push(order);
+  await persist('orders');
+  currentOrderId = order.id;
+  editingBillId = null; editingBillTemp = null;
+  activeCategory = 'Sabhi';
+  document.getElementById('menuSearch').value='';
+  document.getElementById('orderModalTitle').textContent = order.tableName;
+  document.getElementById('orderOverlay').classList.add('active');
+  renderMenuPicker();
+  renderTicket();
+  document.getElementById('billSection').innerHTML='';
+}
+function closeOrderModal(){
+  document.getElementById('orderOverlay').classList.remove('active');
+  currentOrderId = null;
+  editingBillId = null;
+  editingBillTemp = null;
+  renderTables();
+  if(document.getElementById('view-rooms').classList.contains('active')) renderRooms();
+}
+function renderMenuPicker(){
+  const cats = ['Sabhi', ...new Set(items.map(i=>i.cat))];
+  document.getElementById('catTabs').innerHTML = cats.map(c=>
+    `<div class="cat-chip ${c===activeCategory?'active':''}" onclick="setCategory('${c.replace(/'/g,"\\'")}')">${c}</div>`
+  ).join('');
+  const q = (document.getElementById('menuSearch').value||'').toLowerCase();
+  const list = items.filter(i=>(activeCategory==='Sabhi' || i.cat===activeCategory) && i.name.toLowerCase().includes(q));
+  document.getElementById('menuPicker').innerHTML = list.map(i=>`
+    <div class="menu-item" onclick="addLineToOrder('${i.id}')">
+      <div class="mi-name">${i.name}</div>
+      <div class="mi-price">${money(i.price)} / ${i.unit}</div>
+      <div class="mi-stock" style="color:${i.stock<=i.reorder ? 'var(--bad)' : 'var(--ink-soft)'}">Stock: ${i.stock}</div>
+    </div>`).join('') || `<div class="empty-hint">Koi item nahi mila.</div>`;
+}
+function setCategory(c){ activeCategory = c; renderMenuPicker(); }
+function getCurrentOrder(){
+  if(editingBillId) return editingBillTemp;
+  return orders.find(o=>o.id===currentOrderId);
+}
+async function addLineToOrder(itemId){
+  const order = getCurrentOrder();
+  const item = items.find(i=>i.id===itemId);
+  if(!order || !item) return;
+  const existing = order.lines.find(l=>l.itemId===itemId);
+  if(existing){ existing.qty += 1; } else { order.lines.push({itemId:item.id, name:item.name, price:item.price, qty:1}); }
+  if(editingBillId){ if(document.getElementById('bl_tax')) updateBillPreview(); } else { await persist('orders'); }
+  renderTicket();
+}
+async function changeLineQty(itemId, delta){
+  const order = getCurrentOrder();
+  if(!order) return;
+  const line = order.lines.find(l=>l.itemId===itemId);
+  if(!line) return;
+  line.qty += delta;
+  if(line.qty<=0){ order.lines = order.lines.filter(l=>l.itemId!==itemId); }
+  if(editingBillId){ if(document.getElementById('bl_tax')) updateBillPreview(); } else { await persist('orders'); }
+  renderTicket();
+}
+async function removeLine(itemId){
+  const order = getCurrentOrder();
+  if(!order) return;
+  order.lines = order.lines.filter(l=>l.itemId!==itemId);
+  if(editingBillId){ if(document.getElementById('bl_tax')) updateBillPreview(); } else { await persist('orders'); }
+  renderTicket();
+}
+function renderTicket(){
+  const order = getCurrentOrder();
+  const box = document.getElementById('ticketBox');
+  const label = editingBillId ? 'BILL EDIT' : 'KOT TICKET';
+  if(!order || order.lines.length===0){
+    box.innerHTML = `${(!editingBillId && order) ? `<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;font-family:var(--body);">
+      <label style="font-size:11px;color:var(--ink-soft);font-weight:600;white-space:nowrap;">Order Liya (Staff):</label>
+      <input id="staffNameInput" value="${(order.staffName||'').replace(/"/g,'&quot;')}" style="flex:1;padding:4px 8px;font-size:12px;" onchange="updateStaffName(this.value)">
+    </div>` : ''}<div class="ticket-head"><div class="tt">${label}</div><div class="ts">${order?order.tableName:''}</div></div><div class="ticket-empty">Abhi tak koi item add nahi hua</div>`;
+    return;
+  }
+  const total = order.lines.reduce((s,l)=>s+l.qty*l.price,0);
+  box.innerHTML = `
+    ${!editingBillId ? `<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;font-family:var(--body);">
+      <label style="font-size:11px;color:var(--ink-soft);font-weight:600;white-space:nowrap;">Order Liya (Staff):</label>
+      <input id="staffNameInput" value="${(order.staffName||'').replace(/"/g,'&quot;')}" style="flex:1;padding:4px 8px;font-size:12px;" onchange="updateStaffName(this.value)">
+    </div>` : ''}
+    <div class="ticket-head"><div class="tt">${label}</div><div class="ts">${order.tableName}${order.createdAt ? ' - '+new Date(order.createdAt).toLocaleTimeString('en-IN') : ''}</div></div>
+    ${order.lines.map(l=>`
+      <div class="ticket-line">
+        <div class="tl-name">${l.name}</div>
+        <div class="tl-qty">
+          <button class="qtybtn" onclick="changeLineQty('${l.itemId}',-1)">-</button>
+          <span>${l.qty}</span>
+          <button class="qtybtn" onclick="changeLineQty('${l.itemId}',1)">+</button>
+        </div>
+        <div style="width:70px;text-align:right;">${money(l.qty*l.price)}</div>
+        <button class="rm-btn" onclick="removeLine('${l.itemId}')">&times;</button>
+      </div>`).join('')}
+    <div class="ticket-total"><span>Total</span><span>${money(total)}</span></div>
+    ${editingBillId ? '' : `<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
+      <button class="btn ghost small" onclick="sendKOT()">${order.kotSent ? 'KOT Bheji Gayi' : 'Kitchen Ko Bhejein (KOT)'}</button>
+      <button class="btn ghost small" onclick="printKOTReceipt()">Print KOT</button>
+      ${order.isRoomOrder ? '' : `<button class="btn ghost small" onclick="openTransferPicker()">Table Transfer</button>`}
+      <button class="btn accent small" onclick="openBilling()">Bill Banayein</button>
+    </div>`}
+    <div id="transferBox"></div>
+  `;
+}
+function openTransferPicker(){
+  const order = getCurrentOrder();
+  if(!order){ return; }
+  const freeTables = tables.filter(t=>t.status==='free' && t.id!==order.tableId);
+  const box = document.getElementById('transferBox');
+  if(freeTables.length===0){
+    box.innerHTML = `<div class="empty-hint">Koi khaali table nahi hai transfer karne ke liye.</div>`;
+    return;
+  }
+  box.innerHTML = `<div class="billbox">
+    <label class="f">Kis Table Mein Transfer Karein?
+      <select id="transferTarget">${freeTables.map(t=>`<option value="${t.id}">${t.name}</option>`).join('')}</select>
+    </label>
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <button class="btn accent small" onclick="confirmTransfer()">Transfer Confirm Karein</button>
+      <button class="btn ghost small" onclick="document.getElementById('transferBox').innerHTML=''">Cancel</button>
+    </div>
+  </div>`;
+}
+async function confirmTransfer(){
+  const order = getCurrentOrder();
+  if(!order) return;
+  const targetId = document.getElementById('transferTarget').value;
+  const oldTable = tables.find(t=>t.id===order.tableId);
+  const newTable = tables.find(t=>t.id===targetId);
+  if(!newTable || newTable.status!=='free'){ alert('Ye table ab khaali nahi hai.'); return; }
+  if(oldTable){ oldTable.status='free'; oldTable.orderId=null; }
+  newTable.status='occupied'; newTable.orderId=order.id;
+  order.tableId = newTable.id; order.tableName = newTable.name;
+  await persist('tables'); await persist('orders');
+  document.getElementById('orderModalTitle').textContent = newTable.name;
+  document.getElementById('transferBox').innerHTML = '';
+  renderTicket();
+  renderTables();
+}
+/* ---------------- SHARED PRINT / INVOICE HELPERS ---------------- */
+function printDocument(title, styleCss, bodyHtml){
+  let frame = document.getElementById('printFrame');
+  if(!frame){
+    frame = document.createElement('iframe');
+    frame.id = 'printFrame';
+    frame.style.position = 'fixed';
+    frame.style.right = '0';
+    frame.style.bottom = '0';
+    frame.style.width = '0';
+    frame.style.height = '0';
+    frame.style.border = '0';
+    frame.style.visibility = 'hidden';
+    document.body.appendChild(frame);
+  }
+  const doc = frame.contentWindow.document;
+  doc.open();
+  doc.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title><style>${styleCss}</style></head><body>${bodyHtml}</body></html>`);
+  doc.close();
+  setTimeout(()=>{
+    try{
+      frame.contentWindow.focus();
+      frame.contentWindow.print();
+    }catch(e){ console.error('print failed', e); }
+  }, 350);
+}
+const NUM_ONES = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+const NUM_TENS = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+function numToWordsBelowThousand(n){
+  let str = '';
+  if(n>99){ str += NUM_ONES[Math.floor(n/100)] + ' Hundred '; n = n%100; }
+  if(n>19){ str += NUM_TENS[Math.floor(n/10)] + ' ' + NUM_ONES[n%10]; }
+  else { str += NUM_ONES[n]; }
+  return str.trim();
+}
+function amountInWords(amount){
+  let n = Math.round(Math.abs(Number(amount)||0));
+  if(n===0) return 'Zero Rupees Only';
+  const crore = Math.floor(n/10000000); n%=10000000;
+  const lakh = Math.floor(n/100000); n%=100000;
+  const thousand = Math.floor(n/1000); n%=1000;
+  const rest = n;
+  let parts = [];
+  if(crore) parts.push(numToWordsBelowThousand(crore)+' Crore');
+  if(lakh) parts.push(numToWordsBelowThousand(lakh)+' Lakh');
+  if(thousand) parts.push(numToWordsBelowThousand(thousand)+' Thousand');
+  if(rest) parts.push(numToWordsBelowThousand(rest));
+  return 'Rupees ' + parts.join(' ').trim() + ' Only';
+}
+/* ---------------- SHARED INVOICE STYLING ---------------- */
+function invoiceStyleBlock(colorful){
+  const bd = colorful ? '#B5691A' : '#000';
+  const tint = colorful ? '#FBEBD3' : '#f2f2f2';
+  const tint2 = colorful ? '#E5F2E9' : '#fff';
+  const dueBd = colorful ? '#2F7A4D' : '#000';
+  const line = colorful ? '#E4DCC8' : '#ccc';
+  return `
+    *{box-sizing:border-box;}
+    body{font-family:'Segoe UI',Arial,Helvetica,sans-serif;padding:0;margin:0;color:#000;background:#fff;}
+    .sheet{max-width:760px;margin:18px auto;background:#fff;padding:34px 40px 28px 40px;border:1px solid ${line};}
+    .brandbar{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid ${bd};padding-bottom:16px;margin-bottom:18px;gap:16px;}
+    .brandbar .left{display:flex;gap:14px;align-items:center;}
+    .brandbar img.logo{height:58px;width:58px;object-fit:contain;border-radius:8px;border:1px solid #999;padding:4px;background:#fff;${colorful?'':'filter:grayscale(100%);'}}
+    .brandbar h1{font-family:Georgia,'Times New Roman',serif;font-size:23px;margin:0;letter-spacing:.01em;color:#000;}
+    .brandbar .taglinerow{font-size:11.5px;color:#000;margin-top:4px;line-height:1.5;}
+    .brandbar .right{text-align:right;}
+    .doctag{display:inline-block;background:${tint};color:#000;font-size:11px;font-weight:700;letter-spacing:.09em;padding:5px 14px;border-radius:4px;text-transform:uppercase;border:1.5px solid ${bd};}
+    .gstline{font-size:11.5px;color:#000;margin-top:8px;font-weight:700;}
+    .metagrid{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;font-size:12px;margin-bottom:16px;background:${tint};border:1px solid ${line};border-radius:6px;padding:12px 16px;}
+    .metagrid .mi span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#000;margin-bottom:1px;}
+    .metagrid .mi b{font-size:12.5px;color:#000;}
+    .custblock{border:1px solid ${line};border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:12px;background:#fff;}
+    .custblock .lbl{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:#000;font-weight:700;margin-bottom:4px;}
+    table.items{width:100%;border-collapse:collapse;margin-bottom:4px;font-size:12px;}
+    table.items thead th{background:${tint};color:#000;text-align:left;padding:8px 9px;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;border-bottom:2px solid ${bd};}
+    table.items tbody td{padding:8px 9px;border-bottom:1px solid ${line};color:#000;}
+    table.items tbody tr:nth-child(even){background:${colorful?'#FBF7EF':'#f7f7f7'};}
+    .num{text-align:right;}
+    .ctr{text-align:center;}
+    .totwrap{display:flex;justify-content:flex-end;margin-top:14px;}
+    .totbox{width:290px;font-size:12.5px;}
+    .totbox .trow{display:flex;justify-content:space-between;padding:4px 2px;color:#000;}
+    .totbox .trow.grand{background:${tint};border:2px solid ${bd};color:#000;border-radius:5px;padding:9px 10px;margin-top:6px;font-weight:800;font-size:15px;}
+    .totbox .trow.due{background:${tint2};border:2px solid ${dueBd};border-radius:5px;padding:7px 10px;margin-top:4px;font-weight:700;color:#000;}
+    .wordsline{font-size:11.5px;color:#000;margin-top:10px;padding:8px 12px;background:${tint};border:1px solid ${line};border-radius:6px;}
+    .wordsline b{color:#000;}
+    .notebox{border-left:3px solid ${bd};background:${tint};padding:8px 12px;font-size:11.5px;margin-top:16px;border-radius:0 4px 4px 0;color:#000;}
+    .notebox .lbl{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#000;font-weight:700;margin-bottom:2px;}
+    .terms{font-size:10px;color:#000;margin-top:22px;border-top:1px dashed ${bd};padding-top:10px;line-height:1.6;}
+    .terms b{color:#000;}
+    .thankyou{text-align:center;font-family:Georgia,serif;font-style:italic;font-size:13px;color:#000;margin-top:14px;}
+    .signrow{display:flex;justify-content:space-between;margin-top:34px;font-size:11px;color:#000;}
+    .signrow div{border-top:1px solid #000;padding-top:4px;width:150px;text-align:center;}
+    @media print{ body{background:#fff;} .sheet{box-shadow:none;margin:0;max-width:100%;padding:14px 22px;} }
+  `;
+}
+/* ---- Format 2: Standard Branded (letterhead-band style) ---- */
+function standardStyleBlock(colorful){
+  const bandBg = colorful ? '#FBEBD3' : '#f2f2f2';
+  const bandBd = colorful ? '#B5691A' : '#000';
+  const line = colorful ? '#E4DCC8' : '#ccc';
+  const tint2 = colorful ? '#E5F2E9' : '#fff';
+  const dueBd = colorful ? '#2F7A4D' : '#000';
+  return `
+    *{box-sizing:border-box;}
+    body{font-family:'Segoe UI',Arial,Helvetica,sans-serif;padding:0;margin:0;color:#000;background:#fff;}
+    .ssheet{max-width:760px;margin:18px auto;background:#fff;border:1px solid ${line};}
+    .sband{background:${bandBg};border-bottom:4px solid ${bandBd};padding:22px 36px;display:flex;justify-content:space-between;align-items:center;gap:16px;}
+    .sband img.logo{height:56px;width:56px;object-fit:contain;border-radius:8px;background:#fff;padding:4px;border:1px solid #999;${colorful?'':'filter:grayscale(100%);'}}
+    .sband .sleft{display:flex;gap:14px;align-items:center;}
+    .sband h1{font-family:Georgia,serif;font-size:24px;margin:0;color:#000;}
+    .sband .ssub{font-size:11.5px;color:#000;margin-top:4px;}
+    .sband .sright{text-align:right;font-size:12px;color:#000;}
+    .sband .sright b{display:block;font-size:14px;}
+    .sinner{padding:26px 36px;}
+    .smetarow{display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;font-size:12px;margin-bottom:16px;color:#000;}
+    .smetarow div span{display:block;font-size:9.5px;text-transform:uppercase;color:#000;letter-spacing:.05em;}
+    .scust{border:1px solid ${line};border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:12px;background:${bandBg};color:#000;}
+    .scust .lbl{font-size:10px;text-transform:uppercase;letter-spacing:.07em;font-weight:700;margin-bottom:4px;}
+    table.sitems{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:4px;}
+    table.sitems thead th{border-bottom:2px solid ${bandBd};text-align:left;padding:8px 9px;font-size:10.5px;text-transform:uppercase;color:#000;}
+    table.sitems tbody td{padding:8px 9px;border-bottom:1px solid ${line};color:#000;}
+    table.sitems tbody tr:nth-child(even){background:${colorful?'#FBF7EF':'#f7f7f7'};}
+    .snum{text-align:right;}
+    .sctr{text-align:center;}
+    .stotwrap{display:flex;justify-content:flex-end;margin-top:14px;}
+    .stotbox{width:300px;font-size:12.5px;border:1px solid ${line};border-radius:6px;overflow:hidden;}
+    .stotbox .srow{display:flex;justify-content:space-between;padding:6px 12px;color:#000;border-bottom:1px solid ${line};}
+    .stotbox .srow:last-child{border-bottom:none;}
+    .stotbox .srow.sgrand{background:${bandBg};font-weight:800;font-size:15px;border-top:2px solid ${bandBd};}
+    .stotbox .srow.sdue{background:${tint2};border-top:2px solid ${dueBd};font-weight:700;}
+    .swords{font-size:11.5px;color:#000;margin-top:12px;padding:8px 12px;background:${bandBg};border-radius:6px;}
+    .snote{border-left:3px solid ${bandBd};background:${bandBg};padding:8px 12px;font-size:11.5px;margin-top:14px;color:#000;}
+    .sterms{font-size:10px;color:#000;margin-top:20px;border-top:1px dashed ${bandBd};padding-top:10px;line-height:1.6;}
+    .sthanks{text-align:center;font-family:Georgia,serif;font-style:italic;font-size:13px;color:#000;margin-top:14px;padding-bottom:10px;}
+    @media print{ .ssheet{margin:0;border:none;} }
+  `;
+}
+/* ---- Format 4: Compact / Thermal style (58-80mm printers) ---- */
+function thermalStyleBlock(colorful){
+  const dash = colorful ? '#B5691A' : '#000';
+  return `
+    *{box-sizing:border-box;}
+    body{font-family:'Courier New',monospace;padding:0;margin:0;color:#000;background:#fff;}
+    .tsheet{max-width:300px;margin:0 auto;padding:14px 12px;}
+    .tcenter{text-align:center;}
+    .thotel{font-weight:700;font-size:15px;text-transform:uppercase;}
+    .tsub{font-size:10.5px;margin-top:2px;}
+    .tline{border-top:1px dashed ${dash};margin:8px 0;}
+    .trow{display:flex;justify-content:space-between;font-size:11.5px;padding:1px 0;}
+    table.titems{width:100%;border-collapse:collapse;font-size:11px;margin-top:4px;}
+    table.titems th{border-bottom:1px solid ${dash};text-align:left;padding:3px 2px;font-size:10.5px;text-transform:uppercase;}
+    table.titems td{padding:3px 2px;vertical-align:top;}
+    .tnum{text-align:right;}
+    .tctr{text-align:center;}
+    .tgrand{font-weight:700;font-size:13.5px;border-top:1px solid ${dash};border-bottom:1px solid ${dash};padding:4px 0;margin-top:4px;}
+    .twords{font-size:10px;margin-top:6px;}
+    .tterms{font-size:9px;margin-top:10px;line-height:1.5;}
+    .tthanks{text-align:center;font-size:11px;margin-top:10px;font-weight:700;}
+    @media print{ body{background:#fff;} .tsheet{margin:0;} @page{ size:80mm auto; margin:2mm; } }
+  `;
+}
+/* ---- Format 3: Formal Bordered / Ledger style ---- */
+function formalStyleBlock(colorful){
+  const bd = colorful ? '#B5691A' : '#000';
+  const tintHead = colorful ? '#FBEBD3' : '#f0f0f0';
+  return `
+    *{box-sizing:border-box;}
+    body{font-family:Georgia,'Times New Roman',serif;padding:0;margin:0;color:#000;background:#fff;}
+    .fsheet{max-width:760px;margin:18px auto;padding:0;border:3px double ${bd};}
+    .finner{padding:26px 34px;}
+    .fhead{text-align:center;border-bottom:2px solid ${bd};padding-bottom:14px;margin-bottom:16px;}
+    .fhead img{height:54px;${colorful?'':'filter:grayscale(100%);'}margin-bottom:6px;}
+    .fhead h1{font-size:22px;margin:0;letter-spacing:.02em;text-transform:uppercase;color:#000;}
+    .fhead .fsub{font-size:11px;margin-top:4px;color:#000;}
+    .fdoctag{display:inline-block;border:1.5px solid ${bd};background:${tintHead};padding:3px 16px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;margin-top:8px;font-weight:700;color:#000;}
+    .fmeta{display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:14px;border-bottom:1px solid ${bd};padding-bottom:10px;flex-wrap:wrap;gap:6px;color:#000;}
+    .fmeta div span{display:block;font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:#000;}
+    .fcust{font-size:11.5px;margin-bottom:14px;border:1px solid ${bd};padding:9px 12px;color:#000;}
+    .fcust .lbl{font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:#000;font-weight:700;margin-bottom:3px;}
+    table.fitems{width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:6px;border:1px solid ${bd};}
+    table.fitems th{border:1px solid ${bd};padding:6px 8px;font-size:10px;text-transform:uppercase;text-align:left;background:${tintHead};color:#000;}
+    table.fitems td{border:1px solid ${bd};padding:6px 8px;color:#000;}
+    .fnum{text-align:right;}
+    .fctr{text-align:center;}
+    .ftotwrap{display:flex;justify-content:flex-end;}
+    .ftotbox{width:290px;font-size:12px;border:1px solid ${bd};}
+    .ftotbox .frow{display:flex;justify-content:space-between;padding:5px 10px;border-bottom:1px solid ${bd};color:#000;}
+    .ftotbox .frow:last-child{border-bottom:none;}
+    .ftotbox .frow.fgrand{font-weight:800;font-size:14px;background:${tintHead};}
+    .fwords{font-size:11px;margin-top:12px;border-top:1px dashed ${bd};padding-top:8px;color:#000;}
+    .fterms{font-size:9.5px;color:#000;margin-top:20px;border-top:1px solid ${bd};padding-top:8px;line-height:1.6;}
+    .fsignrow{display:flex;justify-content:space-between;margin-top:36px;font-size:11px;color:#000;}
+    .fsignrow div{border-top:1px solid #000;padding-top:4px;width:150px;text-align:center;}
+    .fthanks{text-align:center;font-style:italic;font-size:12.5px;margin-top:16px;color:#000;}
+    @media print{ .fsheet{border:2px double ${bd};margin:0;} }
+  `;
+}
+function printKOTReceipt(){
+  const order = getCurrentOrder();
+  if(!order || order.lines.length===0){ alert('Order khaali hai'); return; }
+  const linesHtml = order.lines.map(l=>`<tr><td>${l.name}</td><td style="text-align:center">${l.qty}</td></tr>`).join('');
+  const style = `
+      body{font-family:'Courier New',monospace;padding:14px;font-size:13px;color:#111;}
+      h2{margin:0;text-align:center;font-size:16px;}
+      .center{text-align:center;}
+      table{width:100%;border-collapse:collapse;margin-top:8px;}
+      th,td{padding:4px 2px;font-size:13px;}
+      th{border-bottom:1px solid #000;text-align:left;}
+      hr{border:none;border-top:1px dashed #000;}
+    `;
+  const body = `
+      <h2>KOT TICKET</h2>
+      <div class="center">${settings.hotelName||''}</div>
+      <hr>
+      <div>Table: ${order.tableName}</div>
+      <div>Waqt: ${new Date(order.createdAt).toLocaleString('en-IN')}</div>
+      ${order.staffName ? `<div>Order Liya: ${order.staffName}</div>` : ''}
+      <hr>
+      <table><thead><tr><th>Item</th><th style="text-align:center">Qty</th></tr></thead>
+      <tbody>${linesHtml}</tbody></table>
+      <hr>
+      <div>Total Items: ${order.lines.reduce((s,l)=>s+l.qty,0)}</div>
+    `;
+  printDocument('KOT '+order.tableName, style, body);
+}
+async function updateStaffName(name){
+  const order = getCurrentOrder();
+  if(!order || editingBillId) return;
+  order.staffName = name;
+  await persist('orders');
+}
+async function sendKOT(){
+  const order = getCurrentOrder();
+  if(!order || order.lines.length===0){ alert('Pehle items add karein'); return; }
+  order.kotSent = true;
+  await persist('orders');
+  renderTicket();
+  renderTables();
+}
+function openBilling(){
+  const order = getCurrentOrder();
+  if(!order || order.lines.length===0){ alert('Order khaali hai'); return; }
+  const discLocked = !canDiscount();
+  const booking = order.isRoomOrder ? bookings.find(b=>b.id===order.bookingId) : null;
+  document.getElementById('billSection').innerHTML = `
+    <div class="billbox">
+      ${order.isRoomOrder ? `<label class="chk" style="margin-bottom:10px;"><input type="checkbox" id="bl_chargetoroom" checked> Room Bill Mein Charge Karein (Check-out ke time collect hoga)</label>` : ''}
+      <div class="formgrid" style="margin-bottom:10px;">
+        <label class="f">Customer Naam<input id="bl_custname" value="${booking?(booking.guestName||''):''}" style="width:100%"></label>
+        <label class="f">Customer Number<input id="bl_custphone" value="${booking?(booking.guestPhone||''):''}" style="width:100%"></label>
+        <label class="f">Customer Address<input id="bl_custaddr" value="${booking?(booking.guestAddress||''):''}" style="width:100%"></label>
+        <label class="f">Customer GST No (agar ho)<input id="bl_custgst" value="${booking?(booking.guestGst||''):''}" style="width:100%"></label>
+      </div>
+      <div class="formgrid" style="margin-bottom:10px;">
+        <label class="f">Tax %<input id="bl_tax" type="number" value="5" style="width:100%"></label>
+        <label class="f">Discount Type<select id="bl_disctype" style="width:100%" ${discLocked?'disabled':''}><option value="pct">Percent (%)</option><option value="amt">Amount (Rs)</option></select></label>
+        <label class="f">Discount Value ${discLocked?'<span style="color:var(--bad);font-weight:600;">(Ijazat Nahi)</span>':`<span style="color:var(--ink-soft);font-weight:500;">(Max ${maxDiscountAllowed()}% ki ijazat hai)</span>`}<input id="bl_discval" type="number" value="0" style="width:100%" ${discLocked?'disabled':''}></label>
+        <label class="f">Payment Mode<select id="bl_pay" style="width:100%"><option>Cash</option><option>UPI</option><option>Card</option><option>Net Banking</option></select></label>
+      </div>
+      <label class="f" style="margin-bottom:10px;">Remark / Note (bill par print hoga)<input id="bl_remark" style="width:100%" placeholder="e.g. Complimentary dessert, VIP guest, etc."></label>
+      <div id="billPreview"></div>
+      <button class="btn accent" style="width:100%;margin-top:8px;" onclick="confirmBill()">${order.isRoomOrder ? 'Confirm Karein' : 'Bill Confirm Karein & Table Free Karein'}</button>
+    </div>`;
+  document.getElementById('bl_tax').addEventListener('input', updateBillPreview);
+  document.getElementById('bl_disctype').addEventListener('change', updateBillPreview);
+  document.getElementById('bl_discval').addEventListener('input', updateBillPreview);
+  updateBillPreview();
+}
+function computeDiscountAmt(subtotal){
+  if(!canDiscount()) return 0;
+  const limit = maxDiscountAllowed();
+  const discType = document.getElementById('bl_disctype').value;
+  let discVal = parseFloat(document.getElementById('bl_discval').value)||0;
+  if(discType==='pct'){
+    if(discVal > limit) discVal = limit;
+    return subtotal*discVal/100;
+  } else {
+    const maxAmt = subtotal*limit/100;
+    return Math.min(discVal, maxAmt);
+  }
+}
+function updateBillPreview(){
+  const order = getCurrentOrder();
+  if(!order) return;
+  const subtotal = order.lines.reduce((s,l)=>s+l.qty*l.price,0);
+  const taxPct = parseFloat(document.getElementById('bl_tax').value)||0;
+  const discType = document.getElementById('bl_disctype').value;
+  const discVal = parseFloat(document.getElementById('bl_discval').value)||0;
+  const disc = computeDiscountAmt(subtotal);
+  const taxAmt = subtotal*taxPct/100;
+  const grandRaw = Math.max(0, subtotal+taxAmt-disc);
+  const grand = Math.round(grandRaw);
+  const roundOff = grand - grandRaw;
+  document.getElementById('billPreview').innerHTML = `
+    <div class="billrow"><span>Subtotal</span><span>${money(subtotal)}</span></div>
+    <div class="billrow"><span>Tax (${taxPct}%)</span><span>${money(taxAmt)}</span></div>
+    <div class="billrow"><span>Discount${discType==='pct' ? ' ('+discVal+'%)' : ''}</span><span>-${money(disc)}</span></div>
+    <div class="billrow"><span>Round Off</span><span>${roundOff>=0?'+':''}${roundOff.toFixed(2)}</span></div>
+    <div class="billrow grand"><span>Grand Total</span><span>${money(grand)}</span></div>`;
+}
+async function confirmBill(){
+  const order = getCurrentOrder();
+  if(!order) return;
+  const subtotal = order.lines.reduce((s,l)=>s+l.qty*l.price,0);
+  const taxPct = parseFloat(document.getElementById('bl_tax').value)||0;
+  const discType = document.getElementById('bl_disctype').value;
+  const rawDiscVal = canDiscount() ? (parseFloat(document.getElementById('bl_discval').value)||0) : 0;
+  const discVal = canDiscount() ? (discType==='pct' ? Math.min(rawDiscVal, maxDiscountAllowed()) : rawDiscVal) : 0;
+  const disc = computeDiscountAmt(subtotal);
+  const taxAmt = subtotal*taxPct/100;
+  const grandRaw = Math.max(0, subtotal+taxAmt-disc);
+  const grand = Math.round(grandRaw);
+  const roundOff = Number((grand - grandRaw).toFixed(2));
+  const pay = document.getElementById('bl_pay').value;
+
+  const custName = document.getElementById('bl_custname').value.trim();
+  const custPhone = document.getElementById('bl_custphone').value.trim();
+  const custAddr = document.getElementById('bl_custaddr').value.trim();
+  const custGst = document.getElementById('bl_custgst').value.trim();
+  const remark = document.getElementById('bl_remark').value.trim();
+
+  const chargeToRoom = order.isRoomOrder && document.getElementById('bl_chargetoroom') && document.getElementById('bl_chargetoroom').checked;
+
+  if(chargeToRoom){
+    const booking = bookings.find(b=>b.id===order.bookingId);
+    if(!booking){ alert('Booking nahi mili.'); return; }
+    if(!booking.services) booking.services=[];
+    order.lines.forEach(l=>{
+      const item = items.find(i=>i.id===l.itemId);
+      if(item){
+        item.stock = Math.max(0, item.stock - l.qty);
+        stockMoves.push({id:uid(), date:new Date().toISOString(), itemId:item.id, itemName:item.name, type:'out', qty:l.qty, note:'Room '+booking.roomNo+' fooding order'});
+      }
+      booking.services.push({
+        name: l.name, amount: l.qty*l.price, qty: l.qty, rate: l.price,
+        hsn: (item && item.hsn) ? item.hsn : '996331',
+        isFood: true, date: new Date().toISOString()
+      });
+    });
+    orders = orders.filter(o=>o.id!==order.id);
+    await persist('bookings'); await persist('items'); await persist('stockMoves'); await persist('orders');
+    closeOrderModal();
+    alert('Fooding order (Rs '+Math.round(subtotal)+') Room '+booking.roomNo+' ke bill mein add ho gaya (HSN code sahit). Check-out ke time final invoice mein shamil hoga.');
+    return;
+  }
+
+  const sale = {
+    id: 'B' + (sales.length+1001), date: new Date().toISOString(), tableName: order.tableName,
+    staffName: order.staffName || '',
+    customerName: custName, customerPhone: custPhone, customerAddress: custAddr, customerGst: custGst,
+    lines: order.lines.map(l=>({itemId:l.itemId, name:l.name, qty:l.qty, price:l.price, total:l.qty*l.price})),
+    subtotal, taxPct, taxAmt, discountType:discType, discountValue:discVal, discount:disc,
+    roundOff, grandTotal:grand, payment:pay, remark
+  };
+  sales.push(sale);
+
+  order.lines.forEach(l=>{
+    const item = items.find(i=>i.id===l.itemId);
+    if(item){
+      item.stock = Math.max(0, item.stock - l.qty);
+      stockMoves.push({id:uid(), date:new Date().toISOString(), itemId:item.id, itemName:item.name, type:'out', qty:l.qty, note:'Sale '+sale.id});
+    }
+  });
+
+  const t = tables.find(x=>x.id===order.tableId);
+  if(t){ t.status='free'; t.orderId=null; }
+  orders = orders.filter(o=>o.id!==order.id);
+
+  await persist('sales'); await persist('items'); await persist('stockMoves'); await persist('tables'); await persist('orders');
+  closeOrderModal();
+  const doPrint = confirm('Bill ' + sale.id + ' successfully bana. Grand Total: ' + money(grand) + '\n\nPrint karna hai?');
+  if(doPrint) printBillReceipt(sale);
+}
+
+/* ---------------- PRINT ---------------- */
+/* ---------------- MULTI-FORMAT B&W INVOICE SYSTEM ---------------- */
+function buildSaleInvoiceData(sale){
+  const cgst = sale.taxAmt/2, sgst = sale.taxAmt/2, halfPct = (sale.taxPct/2).toFixed(2);
+  return {
+    docTag: 'Tax Invoice',
+    metaRows: [
+      {label:'Bill No', value: sale.id},
+      {label:'Date &amp; Time', value: new Date(sale.date).toLocaleString('en-IN')},
+      {label:'Table / Counter', value: sale.tableName},
+      {label:'Served By', value: sale.staffName||'-'}
+    ],
+    customer: (sale.customerName||sale.customerPhone||sale.customerAddress||sale.customerGst) ? {name:sale.customerName, phone:sale.customerPhone, address:sale.customerAddress, gst:sale.customerGst, idLine:''} : null,
+    items: sale.lines.map((l,i)=>{
+      const item = items.find(it=>it.id===l.itemId);
+      return {sr:i+1, name:l.name, hsn: (item&&item.hsn)?item.hsn:'-', qty:l.qty, rate:Math.round(l.price), amount:Math.round(l.total)};
+    }),
+    subtotal: Math.round(sale.subtotal),
+    cgstPct: halfPct, cgstAmt: Math.round(cgst), sgstAmt: Math.round(sgst),
+    discountLabel: 'Discount'+(sale.discountType==='pct'?' ('+sale.discountValue+'%)':''),
+    discount: Math.round(sale.discount),
+    roundOff: sale.roundOff||0,
+    grandTotal: Math.round(sale.grandTotal),
+    paymentMode: sale.payment,
+    advance: null, balanceDue: null,
+    remark: sale.remark||'',
+    wordsText: amountInWords(sale.grandTotal),
+    terms: '1. Goods once sold will not be taken back or exchanged. 2. All disputes are subject to local jurisdiction only. 3. Please verify your bill before making payment. 4. This is a computer-generated invoice and does not require a signature.',
+    thanks: 'Thank you for dining with us. Visit again!',
+    printTitle: 'Invoice '+sale.id
+  };
+}
+function buildRoomInvoiceData(booking){
+  const cgst = (booking.taxAmt||0)/2, sgst = (booking.taxAmt||0)/2, halfPct = ((booking.taxPct||0)/2).toFixed(2);
+  const balanceDue = booking.balanceDue!==undefined ? booking.balanceDue : booking.grandTotal;
+  const roomItems = [{sr:1, name:'Room Charges - Room '+booking.roomNo+' ('+(booking.nights||0)+' night'+((booking.nights||0)>1?'s':'')+' x Rs '+Math.round(booking.ratePerNight||0)+')', hsn:'996311', qty:booking.nights||0, rate:Math.round(booking.ratePerNight||0), amount:Math.round(booking.roomTotal||0)}];
+  (booking.services||[]).forEach((sv,i)=> roomItems.push({
+    sr:i+2, name:sv.name, hsn: sv.hsn || '996331',
+    qty: sv.qty!==undefined ? sv.qty : 1,
+    rate: sv.rate!==undefined ? Math.round(sv.rate) : Math.round(sv.amount),
+    amount: Math.round(sv.amount)
+  }));
+  return {
+    docTag: 'Room Bill / Tax Invoice',
+    metaRows: [
+      {label:'Room No', value: booking.roomNo},
+      {label:'Check-Out By', value: booking.checkedOutBy||'-'},
+      {label:'Check-In', value: new Date(booking.checkinDate).toLocaleString('en-IN')},
+      {label:'Check-Out', value: booking.checkoutDate ? new Date(booking.checkoutDate).toLocaleString('en-IN') : '-'}
+    ],
+    customer: {name:booking.guestName, phone:booking.guestPhone, address:booking.guestAddress, gst:booking.guestGst, idLine: booking.idType?(booking.idType+': '+(booking.idNo||'')):''},
+    items: roomItems,
+    subtotal: Math.round((booking.roomTotal||0)+(booking.servicesTotal||0)),
+    cgstPct: halfPct, cgstAmt: Math.round(cgst), sgstAmt: Math.round(sgst),
+    discountLabel: 'Discount',
+    discount: Math.round(booking.discount||0),
+    roundOff: booking.roundOff||0,
+    grandTotal: Math.round(booking.grandTotal||0),
+    paymentMode: booking.payment||'-',
+    advance: Math.round(booking.advance||0), balanceDue: Math.round(balanceDue||0),
+    remark: booking.remark||'',
+    wordsText: amountInWords(booking.grandTotal||0),
+    terms: '1. Check-out time is as per hotel policy; late check-out may attract extra charges. 2. Hotel is not responsible for loss of valuables left unattended in the room. 3. All disputes are subject to local jurisdiction only. 4. This is a computer-generated invoice and does not require a signature.',
+    thanks: 'Thank you for staying with us. We hope to welcome you again!',
+    printTitle: 'Room Invoice '+booking.roomNo
+  };
+}
+function renderFormat1(data, colorful){
+  const rowsHtml = data.metaRows.map(m=>`<div class="mi"><span>${m.label}</span><b>${m.value}</b></div>`).join('');
+  const itemsHtml = data.items.map(it=>`<tr><td>${it.sr}</td><td>${it.name}</td><td class="ctr">${it.hsn}</td><td class="ctr">${it.qty}</td><td class="num">Rs ${it.rate}</td><td class="num">Rs ${it.amount}</td></tr>`).join('');
+  const body = `<div class="sheet">
+      <div class="brandbar">
+        <div class="left">
+          ${settings.logo ? `<img class="logo" src="${settings.logo}">` : ''}
+          <div>
+            <h1>${settings.hotelName||'Hotel'}</h1>
+            <div class="taglinerow">${settings.address ? settings.address+'<br>' : ''}${settings.phone ? 'Ph: '+settings.phone : ''}</div>
+            <div class="gstline">GSTIN: ${settings.gstNo || 'Not Registered'}</div>
+          </div>
+        </div>
+        <div class="right"><span class="doctag">${data.docTag}</span></div>
+      </div>
+      <div class="metagrid">${rowsHtml}</div>
+      ${data.customer ? `<div class="custblock">
+        <div class="lbl">${data.docTag.indexOf('Room')>-1?'Guest Details':'Bill To'}</div>
+        ${data.customer.name ? '<b>'+data.customer.name+'</b><br>' : ''}
+        ${data.customer.phone ? 'Ph: '+data.customer.phone+'<br>' : ''}
+        ${data.customer.idLine ? data.customer.idLine+'<br>' : ''}
+        ${data.customer.address ? data.customer.address+'<br>' : ''}
+        ${data.customer.gst ? 'GSTIN: '+data.customer.gst : ''}
+      </div>` : ''}
+      <table class="items"><thead><tr><th>Sr</th><th>Item</th><th class="ctr">HSN</th><th class="ctr">Qty</th><th class="num">Rate</th><th class="num">Amount</th></tr></thead>
+      <tbody>${itemsHtml}</tbody></table>
+      <div class="totwrap"><div class="totbox">
+        <div class="trow"><span>Subtotal</span><span>Rs ${data.subtotal}</span></div>
+        <div class="trow"><span>CGST (${data.cgstPct}%)</span><span>Rs ${data.cgstAmt}</span></div>
+        <div class="trow"><span>SGST (${data.cgstPct}%)</span><span>Rs ${data.sgstAmt}</span></div>
+        <div class="trow"><span>${data.discountLabel}</span><span>-Rs ${data.discount}</span></div>
+        <div class="trow"><span>Round Off</span><span>${(data.roundOff>=0?'+':'')+data.roundOff.toFixed(2)}</span></div>
+        <div class="trow grand"><span>Grand Total</span><span>Rs ${data.grandTotal}</span></div>
+        ${data.advance!==null ? `<div class="trow" style="margin-top:6px;"><span>Advance Paid</span><span>-Rs ${data.advance}</span></div><div class="trow due"><span>Balance Due</span><span>Rs ${data.balanceDue}</span></div>` : ''}
+        <div class="trow" style="margin-top:6px;"><span>Payment Mode</span><span>${data.paymentMode}</span></div>
+      </div></div>
+      <div class="wordsline"><b>Amount in Words:</b> ${data.wordsText}</div>
+      ${data.remark ? `<div class="notebox"><div class="lbl">Remark</div>${data.remark}</div>` : ''}
+      <div class="terms"><b>Terms &amp; Conditions:</b> ${data.terms}</div>
+      <div class="thankyou">${data.thanks}</div>
+    </div>`;
+  return {style: invoiceStyleBlock(colorful), body};
+}
+/* Format 2 - Standard Branded (letterhead band style, closer to the original single-format bill look) */
+function renderFormat2(data, colorful){
+  const metaHtml = data.metaRows.map(m=>`<div><span>${m.label}</span><b>${m.value}</b></div>`).join('');
+  const itemsHtml = data.items.map(it=>`<tr><td>${it.sr}</td><td>${it.name}</td><td class="sctr">${it.hsn}</td><td class="sctr">${it.qty}</td><td class="snum">Rs ${it.rate}</td><td class="snum">Rs ${it.amount}</td></tr>`).join('');
+  const body = `<div class="ssheet">
+      <div class="sband">
+        <div class="sleft">
+          ${settings.logo ? `<img class="logo" src="${settings.logo}">` : ''}
+          <div>
+            <h1>${settings.hotelName||'Hotel'}</h1>
+            <div class="ssub">${settings.address||''}${settings.phone?' | Ph: '+settings.phone:''}</div>
+            <div class="ssub">GSTIN: ${settings.gstNo||'Not Registered'}</div>
+          </div>
+        </div>
+        <div class="sright"><b>${data.docTag}</b>${data.metaRows[0]?data.metaRows[0].value:''}</div>
+      </div>
+      <div class="sinner">
+        <div class="smetarow">${metaHtml}</div>
+        ${data.customer ? `<div class="scust">
+          <div class="lbl">${data.docTag.indexOf('Room')>-1?'Guest Details':'Bill To'}</div>
+          ${data.customer.name?data.customer.name+'<br>':''}${data.customer.phone?'Ph: '+data.customer.phone+'<br>':''}${data.customer.idLine?data.customer.idLine+'<br>':''}${data.customer.address?data.customer.address+'<br>':''}${data.customer.gst?'GSTIN: '+data.customer.gst:''}
+        </div>` : ''}
+        <table class="sitems"><thead><tr><th>Sr</th><th>Item</th><th class="sctr">HSN</th><th class="sctr">Qty</th><th class="snum">Rate</th><th class="snum">Amount</th></tr></thead>
+        <tbody>${itemsHtml}</tbody></table>
+        <div class="stotwrap"><div class="stotbox">
+          <div class="srow"><span>Subtotal</span><span>Rs ${data.subtotal}</span></div>
+          <div class="srow"><span>CGST (${data.cgstPct}%)</span><span>Rs ${data.cgstAmt}</span></div>
+          <div class="srow"><span>SGST (${data.cgstPct}%)</span><span>Rs ${data.sgstAmt}</span></div>
+          <div class="srow"><span>${data.discountLabel}</span><span>-Rs ${data.discount}</span></div>
+          <div class="srow"><span>Round Off</span><span>${(data.roundOff>=0?'+':'')+data.roundOff.toFixed(2)}</span></div>
+          <div class="srow sgrand"><span>Grand Total</span><span>Rs ${data.grandTotal}</span></div>
+          ${data.advance!==null ? `<div class="srow"><span>Advance Paid</span><span>-Rs ${data.advance}</span></div><div class="srow sdue"><span>Balance Due</span><span>Rs ${data.balanceDue}</span></div>` : ''}
+          <div class="srow"><span>Payment Mode</span><span>${data.paymentMode}</span></div>
+        </div></div>
+        <div class="swords"><b>Amount in Words:</b> ${data.wordsText}</div>
+        ${data.remark ? `<div class="snote"><b>Remark:</b> ${data.remark}</div>` : ''}
+        <div class="sterms"><b>Terms &amp; Conditions:</b> ${data.terms}</div>
+        <div class="sthanks">${data.thanks}</div>
+      </div>
+    </div>`;
+  return {style: standardStyleBlock(colorful), body};
+}
+function renderFormat3(data, colorful){
+  const metaHtml = data.metaRows.map(m=>`<div><span>${m.label}</span><b>${m.value}</b></div>`).join('');
+  const itemsHtml = data.items.map(it=>`<tr><td>${it.sr}</td><td>${it.name}</td><td class="fctr">${it.hsn}</td><td class="fctr">${it.qty}</td><td class="fnum">Rs ${it.rate}</td><td class="fnum">Rs ${it.amount}</td></tr>`).join('');
+  const body = `<div class="fsheet"><div class="finner">
+      <div class="fhead">
+        ${settings.logo ? `<img src="${settings.logo}">` : ''}
+        <h1>${settings.hotelName||'Hotel'}</h1>
+        <div class="fsub">${settings.address||''}${settings.phone?' | Ph: '+settings.phone:''}</div>
+        <div class="fsub">GSTIN: ${settings.gstNo||'Not Registered'}</div>
+        <div class="fdoctag">${data.docTag}</div>
+      </div>
+      <div class="fmeta">${metaHtml}</div>
+      ${data.customer ? `<div class="fcust">
+        <div class="lbl">${data.docTag.indexOf('Room')>-1?'Guest Details':'Bill To'}</div>
+        ${data.customer.name?data.customer.name+'<br>':''}${data.customer.phone?'Ph: '+data.customer.phone+'<br>':''}${data.customer.idLine?data.customer.idLine+'<br>':''}${data.customer.address?data.customer.address+'<br>':''}${data.customer.gst?'GSTIN: '+data.customer.gst:''}
+      </div>` : ''}
+      <table class="fitems"><thead><tr><th>Sr</th><th>Description</th><th class="fctr">HSN</th><th class="fctr">Qty</th><th class="fnum">Rate</th><th class="fnum">Amount</th></tr></thead>
+      <tbody>${itemsHtml}</tbody></table>
+      <div class="ftotwrap"><div class="ftotbox">
+        <div class="frow"><span>Subtotal</span><span>Rs ${data.subtotal}</span></div>
+        <div class="frow"><span>CGST (${data.cgstPct}%)</span><span>Rs ${data.cgstAmt}</span></div>
+        <div class="frow"><span>SGST (${data.cgstPct}%)</span><span>Rs ${data.sgstAmt}</span></div>
+        <div class="frow"><span>${data.discountLabel}</span><span>-Rs ${data.discount}</span></div>
+        <div class="frow"><span>Round Off</span><span>${(data.roundOff>=0?'+':'')+data.roundOff.toFixed(2)}</span></div>
+        <div class="frow fgrand"><span>Grand Total</span><span>Rs ${data.grandTotal}</span></div>
+        ${data.advance!==null ? `<div class="frow"><span>Advance Paid</span><span>-Rs ${data.advance}</span></div><div class="frow" style="font-weight:700;"><span>Balance Due</span><span>Rs ${data.balanceDue}</span></div>` : ''}
+        <div class="frow"><span>Payment Mode</span><span>${data.paymentMode}</span></div>
+      </div></div>
+      <div class="fwords"><b>Amount in Words:</b> ${data.wordsText}</div>
+      ${data.remark ? `<div class="fwords"><b>Remark:</b> ${data.remark}</div>` : ''}
+      <div class="fterms"><b>Terms &amp; Conditions:</b> ${data.terms}</div>
+      <div class="fsignrow"><div>Guest / Customer Signature</div><div>Authorised Signatory</div></div>
+      <div class="fthanks">${data.thanks}</div>
+    </div></div>`;
+  return {style: formalStyleBlock(colorful), body};
+}
+function renderFormat4(data, colorful){
+  const itemsHtml = data.items.map(it=>`<tr><td>${it.name}<br><span style="font-size:9.5px;">${it.qty} x ${it.rate}</span></td><td class="tnum">${it.amount}</td></tr>`).join('');
+  const body = `<div class="tsheet">
+      <div class="tcenter thotel">${settings.hotelName||'Hotel'}</div>
+      <div class="tcenter tsub">${settings.address||''}</div>
+      <div class="tcenter tsub">${settings.phone?'Ph: '+settings.phone:''}${settings.gstNo?' | GSTIN: '+settings.gstNo:''}</div>
+      <div class="tline"></div>
+      ${data.metaRows.map(m=>`<div class="trow"><span>${m.label}</span><span>${m.value}</span></div>`).join('')}
+      <div class="tline"></div>
+      ${data.customer ? `<div style="font-size:11px;">${data.customer.name?data.customer.name+'<br>':''}${data.customer.phone?'Ph: '+data.customer.phone:''}</div><div class="tline"></div>` : ''}
+      <table class="titems"><thead><tr><th>Item</th><th class="tnum">Amt</th></tr></thead>
+      <tbody>${itemsHtml}</tbody></table>
+      <div class="tline"></div>
+      <div class="trow"><span>Subtotal</span><span>${data.subtotal}</span></div>
+      <div class="trow"><span>CGST+SGST</span><span>${data.cgstAmt+data.sgstAmt}</span></div>
+      <div class="trow"><span>${data.discountLabel}</span><span>-${data.discount}</span></div>
+      <div class="trow"><span>Round Off</span><span>${(data.roundOff>=0?'+':'')+data.roundOff.toFixed(2)}</span></div>
+      <div class="tgrand trow"><span>GRAND TOTAL</span><span>Rs ${data.grandTotal}</span></div>
+      ${data.advance!==null ? `<div class="trow"><span>Advance Paid</span><span>-${data.advance}</span></div><div class="trow" style="font-weight:700;"><span>Balance Due</span><span>${data.balanceDue}</span></div>` : ''}
+      <div class="trow"><span>Payment</span><span>${data.paymentMode}</span></div>
+      <div class="twords">${data.wordsText}</div>
+      ${data.remark ? `<div class="twords">Remark: ${data.remark}</div>` : ''}
+      <div class="tterms">${data.terms}</div>
+      <div class="tthanks">${data.thanks}</div>
+    </div>`;
+  return {style: thermalStyleBlock(colorful), body};
+}
+function chooseAndPrintInvoice(data, colorful){
+  window._pendingInvoiceData = data;
+  window._pendingInvoiceColorful = !!colorful;
+  const lastFormat = settings.billFormat || 1;
+  const formats = [
+    {id:1, title:'Format 1 - Detailed Classic', desc:'Poora itemized table, GST breakdown, terms & conditions. A4 print ke liye best.'},
+    {id:2, title:'Format 2 - Standard Branded', desc:'Letterhead-style banner ke saath standard professional bill.'},
+    {id:3, title:'Format 3 - Formal Bordered', desc:'Classic double-border formal invoice, signature line ke saath.'},
+    {id:4, title:'Format 4 - Compact / Thermal', desc:'Chhoti thermal printer (58/80mm) ya kam kagaz istemal karne ke liye compact receipt.'}
+  ];
+  const noteText = colorful
+    ? 'Bill ka design colourful/attractive hoga, lekin sabhi likhawat (text) hamesha black rahegi. Format chunein:'
+    : 'Restaurant KOT/Bill hamesha black &amp; white mein print hota hai (ink bachane ke liye). Format chunein:';
+  document.getElementById('formatModalBody').innerHTML = `
+    <p style="font-size:12.5px;color:var(--ink-soft);margin-top:-4px;">${noteText}</p>
+    ${formats.map(f=>`<button class="formatcard ${lastFormat==f.id?'active':''}" onclick="printInvoiceWithFormat(${f.id})">
+      <div class="fc-title">${f.title}</div>
+      <div class="fc-desc">${f.desc}</div>
+    </button>`).join('')}
+  `;
+  document.getElementById('formatOverlay').classList.add('active');
+}
+async function printInvoiceWithFormat(formatId){
+  const data = window._pendingInvoiceData;
+  if(!data) return;
+  const colorful = !!window._pendingInvoiceColorful;
+  settings.billFormat = formatId;
+  await persist('settings');
+  document.getElementById('formatOverlay').classList.remove('active');
+  let r;
+  if(formatId===2) r = renderFormat2(data, colorful);
+  else if(formatId===3) r = renderFormat3(data, colorful);
+  else if(formatId===4) r = renderFormat4(data, colorful);
+  else r = renderFormat1(data, colorful);
+  printDocument(data.printTitle, r.style, r.body);
+}
+function printBillReceipt(sale){
+  /* Restaurant bill: always black & white, per hotel policy */
+  chooseAndPrintInvoice(buildSaleInvoiceData(sale), false);
+}
+function printSaleById(saleId){
+  const sale = sales.find(s=>s.id===saleId);
+  if(sale) printBillReceipt(sale);
+}
+
+/* ---------------- BILL EDIT / DELETE ---------------- */
+function openBillEditor(saleId){
+  if(!currentUser || currentUser.role!=='master'){ alert('Sirf Master ID hi bill edit kar sakti hai.'); return; }
+  const sale = sales.find(s=>s.id===saleId);
+  if(!sale) return;
+  editingBillId = saleId;
+  editingBillTemp = { tableName: sale.tableName, lines: sale.lines.map(l=>({itemId:l.itemId, name:l.name, price:l.price, qty:l.qty})) };
+  currentOrderId = null;
+  activeCategory = 'Sabhi';
+  document.getElementById('menuSearch').value='';
+  document.getElementById('orderModalTitle').textContent = 'Bill Edit: ' + sale.id;
+  document.getElementById('orderOverlay').classList.add('active');
+  renderMenuPicker();
+  renderTicket();
+  document.getElementById('billSection').innerHTML = `
+    <div class="billbox">
+      <div class="formgrid" style="margin-bottom:10px;">
+        <label class="f">Customer Naam<input id="bl_custname" value="${(sale.customerName||'').replace(/"/g,'&quot;')}" style="width:100%"></label>
+        <label class="f">Customer Number<input id="bl_custphone" value="${(sale.customerPhone||'').replace(/"/g,'&quot;')}" style="width:100%"></label>
+        <label class="f">Customer Address<input id="bl_custaddr" value="${(sale.customerAddress||'').replace(/"/g,'&quot;')}" style="width:100%"></label>
+        <label class="f">Customer GST No<input id="bl_custgst" value="${(sale.customerGst||'').replace(/"/g,'&quot;')}" style="width:100%"></label>
+      </div>
+      <div class="formgrid" style="margin-bottom:10px;">
+        <label class="f">Tax %<input id="bl_tax" type="number" value="${sale.taxPct}" style="width:100%"></label>
+        <label class="f">Discount Type<select id="bl_disctype" style="width:100%">
+          <option value="pct" ${sale.discountType==='pct'?'selected':''}>Percent (%)</option>
+          <option value="amt" ${sale.discountType==='amt'?'selected':''}>Amount (Rs)</option>
+        </select></label>
+        <label class="f">Discount Value<input id="bl_discval" type="number" value="${sale.discountValue!==undefined?sale.discountValue:sale.discount}" style="width:100%"></label>
+        <label class="f">Payment Mode<select id="bl_pay" style="width:100%">
+          <option ${sale.payment==='Cash'?'selected':''}>Cash</option>
+          <option ${sale.payment==='UPI'?'selected':''}>UPI</option>
+          <option ${sale.payment==='Card'?'selected':''}>Card</option>
+          <option ${sale.payment==='Net Banking'?'selected':''}>Net Banking</option>
+        </select></label>
+      </div>
+      <label class="f" style="margin-bottom:10px;">Remark / Note<input id="bl_remark" value="${(sale.remark||'').replace(/"/g,'&quot;')}" style="width:100%"></label>
+      <div id="billPreview"></div>
+      <button class="btn accent" style="width:100%;margin-top:8px;" onclick="confirmBillEdit()">Bill Update Karein</button>
+    </div>`;
+  document.getElementById('bl_tax').addEventListener('input', updateBillPreview);
+  document.getElementById('bl_disctype').addEventListener('change', updateBillPreview);
+  document.getElementById('bl_discval').addEventListener('input', updateBillPreview);
+  updateBillPreview();
+}
+async function confirmBillEdit(){
+  const sale = sales.find(s=>s.id===editingBillId);
+  if(!sale || !editingBillTemp) return;
+  const subtotal = editingBillTemp.lines.reduce((s,l)=>s+l.qty*l.price,0);
+  const taxPct = parseFloat(document.getElementById('bl_tax').value)||0;
+  const discType = document.getElementById('bl_disctype').value;
+  const discVal = parseFloat(document.getElementById('bl_discval').value)||0;
+  const disc = computeDiscountAmt(subtotal);
+  const taxAmt = subtotal*taxPct/100;
+  const grandRaw = Math.max(0, subtotal+taxAmt-disc);
+  const grand = Math.round(grandRaw);
+  const roundOff = Number((grand - grandRaw).toFixed(2));
+  const pay = document.getElementById('bl_pay').value;
+
+  sale.lines.forEach(old=>{
+    const item = items.find(i=>i.id===old.itemId);
+    if(item){ item.stock += old.qty; stockMoves.push({id:uid(), date:new Date().toISOString(), itemId:item.id, itemName:item.name, type:'in', qty:old.qty, note:'Bill '+sale.id+' edit - purana stock wapas'}); }
+  });
+  editingBillTemp.lines.forEach(nl=>{
+    const item = items.find(i=>i.id===nl.itemId);
+    if(item){ item.stock = Math.max(0, item.stock - nl.qty); stockMoves.push({id:uid(), date:new Date().toISOString(), itemId:item.id, itemName:item.name, type:'out', qty:nl.qty, note:'Bill '+sale.id+' edit - naya stock kam'}); }
+  });
+
+  sale.lines = editingBillTemp.lines.map(l=>({itemId:l.itemId, name:l.name, qty:l.qty, price:l.price, total:l.qty*l.price}));
+  sale.subtotal = subtotal; sale.taxPct = taxPct; sale.discountType = discType; sale.discountValue = discVal; sale.discount = disc; sale.taxAmt = taxAmt; sale.roundOff = roundOff; sale.grandTotal = grand; sale.payment = pay;
+  sale.customerName = document.getElementById('bl_custname').value.trim();
+  sale.customerPhone = document.getElementById('bl_custphone').value.trim();
+  sale.customerAddress = document.getElementById('bl_custaddr').value.trim();
+  sale.customerGst = document.getElementById('bl_custgst').value.trim();
+  sale.remark = document.getElementById('bl_remark').value.trim();
+
+  await persist('sales'); await persist('items'); await persist('stockMoves');
+  editingBillId = null; editingBillTemp = null;
+  document.getElementById('orderOverlay').classList.remove('active');
+  renderReports(); renderStock();
+  alert('Bill ' + sale.id + ' update ho gaya. Naya Grand Total: ' + money(grand));
+}
+async function deleteBill(saleId){
+  if(!currentUser || currentUser.role!=='master'){ alert('Sirf Master ID hi bill delete kar sakti hai.'); return; }
+  if(!confirm('Ye bill delete karna hai? Stock wapas add ho jayega.')) return;
+  const sale = sales.find(s=>s.id===saleId);
+  if(!sale) return;
+  sale.lines.forEach(l=>{
+    const item = items.find(i=>i.id===l.itemId);
+    if(item){ item.stock += l.qty; stockMoves.push({id:uid(), date:new Date().toISOString(), itemId:item.id, itemName:item.name, type:'in', qty:l.qty, note:'Bill '+sale.id+' delete - stock wapas'}); }
+  });
+  sales = sales.filter(s=>s.id!==saleId);
+  await persist('sales'); await persist('items'); await persist('stockMoves');
+  renderReports(); renderStock();
+}
+
+/* ---------------- FRONT OFFICE: ROOMS / CHECK-IN / CHECK-OUT ---------------- */
+async function addRoomPrompt(){
+  if(!isMaster()){ alert('Sirf Master ID naya room add kar sakti hai.'); return; }
+  const roomNo = prompt('Naye room ka number:');
+  if(!roomNo) return;
+  const type = prompt('Room type (e.g. Standard/Deluxe/Suite):', 'Standard') || 'Standard';
+  const rate = parseFloat(prompt('Rate per night (Rs):', '1500')) || 0;
+  rooms.push({id:uid(), roomNo, type, rate, status:'vacant', currentBookingId:null});
+  await persist('rooms');
+  renderRooms();
+}
+async function deleteRoom(id){
+  if(!isMaster()){ alert('Sirf Master ID room delete kar sakti hai.'); return; }
+  const r = rooms.find(x=>x.id===id);
+  if(!r) return;
+  if(r.status!=='vacant'){ alert('Occupied room delete nahi ho sakta. Pehle guest check-out karein.'); return; }
+  if(!confirm('Ye room delete karna hai?')) return;
+  rooms = rooms.filter(x=>x.id!==id);
+  await persist('rooms');
+  renderRooms();
+}
+function frontOfficeStats(){
+  const total = rooms.length;
+  const occupied = rooms.filter(r=>r.status==='occupied').length;
+  const vacant = total - occupied;
+  const todayCheckins = bookings.filter(b=>b.checkinDate && b.checkinDate.slice(0,10)===todayISO()).length;
+  const todayCheckouts = bookings.filter(b=>b.checkoutDate && b.checkoutDate.slice(0,10)===todayISO()).length;
+  return {total, occupied, vacant, todayCheckins, todayCheckouts};
+}
+function renderRooms(){
+  const addBtn = document.getElementById('addRoomBtn');
+  if(addBtn) addBtn.style.display = isMaster() ? 'inline-block' : 'none';
+  const st = frontOfficeStats();
+  let statsBox = document.getElementById('foStatsRow');
+  if(!statsBox){
+    statsBox = document.createElement('div');
+    statsBox.className = 'cardrow';
+    statsBox.id = 'foStatsRow';
+    document.getElementById('view-rooms').insertBefore(statsBox, document.getElementById('view-rooms').firstChild);
+  }
+  statsBox.innerHTML = `
+    <div class="stat"><div class="label">Total Rooms</div><div class="value">${st.total}</div></div>
+    <div class="stat"><div class="label">Occupied</div><div class="value">${st.occupied}</div></div>
+    <div class="stat"><div class="label">Khaali (Vacant)</div><div class="value">${st.vacant}</div></div>
+    <div class="stat"><div class="label">Aaj Check-In</div><div class="value">${st.todayCheckins}</div></div>
+    <div class="stat"><div class="label">Aaj Check-Out</div><div class="value">${st.todayCheckouts}</div></div>
+  `;
+  const grid = document.getElementById('roomGrid');
+  grid.innerHTML = rooms.map(r=>{
+    const booking = bookings.find(b=>b.id===r.currentBookingId && b.status==='active');
+    const cardClass = r.status==='vacant' ? 'free' : (r.status==='cleaning' ? 'cleaning' : 'active');
+    const statusLabel = r.status==='vacant' ? 'Khaali / Ready' : (r.status==='cleaning' ? 'Cleaning Pending' : ('Guest: '+(booking?booking.guestName:'-')));
+    return `<div class="tablecard ${cardClass}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">
+        <div class="tname" style="cursor:pointer;" onclick="openRoomModal('${r.id}')">Room ${r.roomNo}</div>
+        ${(isMaster() && r.status==='vacant') ? `<button class="ticon" title="Delete" onclick="deleteRoom('${r.id}')">&times;</button>` : ''}
+      </div>
+      <div class="tstatus" style="cursor:pointer;" onclick="openRoomModal('${r.id}')">${r.type} &middot; ${money(r.rate)}/night</div>
+      <div class="tstatus" style="cursor:pointer;" onclick="openRoomModal('${r.id}')">${statusLabel}</div>
+      ${r.status==='cleaning' ? `<button class="btn accent small" style="width:100%;margin-top:8px;" onclick="markRoomReady('${r.id}')">Cleaning Done - Mark Ready</button>` : ''}
+    </div>`;
+  }).join('') || `<div class="empty-hint">Koi room nahi hai. Master ID se "+ Naya Room" se add karein.</div>`;
+
+  let history = document.getElementById('foHistoryPanel');
+  if(!history){
+    history = document.createElement('div');
+    history.className = 'panel';
+    history.id = 'foHistoryPanel';
+    history.style.marginTop = '20px';
+    document.getElementById('view-rooms').appendChild(history);
+  }
+  const recentBookings = [...bookings].reverse().slice(0,20);
+  history.innerHTML = `
+    <h2 class="sectitle">Recent Check-In / Check-Out History</h2>
+    <table class="datatable"><thead><tr><th>Room</th><th>Guest</th><th>Check-In</th><th>Check-Out</th><th>Status</th><th class="num">Amount</th><th style="width:170px;">Actions</th></tr></thead>
+    <tbody>
+      ${recentBookings.map(b=>`<tr>
+        <td>${b.roomNo}</td><td>${b.guestName}</td>
+        <td>${new Date(b.checkinDate).toLocaleString('en-IN')}</td>
+        <td>${b.checkoutDate ? new Date(b.checkoutDate).toLocaleString('en-IN') : '-'}</td>
+        <td>${b.status==='active' ? '<span class="pill warn">Staying</span>' : '<span class="pill good">Checked Out</span>'}</td>
+        <td class="num">${b.grandTotal!==undefined ? money(b.grandTotal) : '-'}</td>
+        <td>${b.status==='closed' ? `<button class="btn ghost small" onclick="reprintRoomBill('${b.id}')">Reprint</button>
+          ${isMaster() ? `<button class="btn ghost small" onclick="openRoomBillEditor('${b.id}')">Edit</button> <button class="btn danger small" onclick="deleteRoomBill('${b.id}')">Delete</button>` : ''}` : (isMaster() ? `<button class="btn ghost small" onclick="openGuestEditModal('${b.id}')">Guest Entry Edit</button>` : '')}</td>
+      </tr>`).join('') || '<tr><td colspan="7" class="empty-hint">Koi record nahi hai.</td></tr>'}
+    </tbody></table>
+  `;
+}
+function openRoomBillEditor(bookingId){
+  if(!isMaster()){ alert('Sirf Master ID hi room bill edit kar sakti hai.'); return; }
+  const booking = bookings.find(b=>b.id===bookingId);
+  if(!booking) return;
+  document.getElementById('roomOverlay').classList.add('active');
+  const discLocked = false;
+  document.getElementById('roomModalTitle').textContent = 'Bill Edit: Room ' + booking.roomNo + ' (' + booking.guestName + ')';
+  document.getElementById('roomModalBody').innerHTML = `
+    <div class="billbox">
+      <div><b>Nights:</b> ${booking.nights} x ${money(booking.ratePerNight)} = ${money(booking.roomTotal)}</div>
+      <div><b>Services Total:</b> ${money(booking.servicesTotal||0)}</div>
+      <div class="formgrid" style="margin-top:10px;">
+        <label class="f">Tax %<input id="reb_tax" type="number" value="${booking.taxPct}" style="width:100%"></label>
+        <label class="f">Discount Type<select id="reb_disctype" style="width:100%">
+          <option value="pct" ${booking.discountType==='pct'?'selected':''}>Percent (%)</option>
+          <option value="amt" ${booking.discountType==='amt'?'selected':''}>Amount (Rs)</option>
+        </select></label>
+        <label class="f">Discount Value (Master ke liye limit nahi hai)<input id="reb_discval" type="number" value="${booking.discountValue||0}" style="width:100%"></label>
+        <label class="f">Payment Mode<select id="reb_pay" style="width:100%">
+          <option ${booking.payment==='Cash'?'selected':''}>Cash</option>
+          <option ${booking.payment==='UPI'?'selected':''}>UPI</option>
+          <option ${booking.payment==='Card'?'selected':''}>Card</option>
+          <option ${booking.payment==='Net Banking'?'selected':''}>Net Banking</option>
+        </select></label>
+      </div>
+      <label class="f" style="margin-top:10px;">Remark<input id="reb_remark" value="${(booking.remark||'').replace(/"/g,'&quot;')}" style="width:100%"></label>
+      <div id="roomBillEditPreview" style="margin-top:8px;"></div>
+    </div>
+    <button class="btn accent" style="width:100%;margin-top:10px;" onclick="confirmRoomBillEdit('${booking.id}')">Bill Update Karein</button>
+  `;
+  const chargeBase = (booking.roomTotal||0) + (booking.servicesTotal||0);
+  const updatePreview = ()=>{
+    const taxPct = parseFloat(document.getElementById('reb_tax').value)||0;
+    const discType = document.getElementById('reb_disctype').value;
+    const discVal = parseFloat(document.getElementById('reb_discval').value)||0;
+    const disc = discType==='pct' ? chargeBase*discVal/100 : discVal;
+    const taxAmt = chargeBase*taxPct/100;
+    const grandRaw = Math.max(0, chargeBase+taxAmt-disc);
+    const grand = Math.round(grandRaw);
+    const roundOff = grand - grandRaw;
+    const balanceDue = Math.max(0, grand - (booking.advance||0));
+    document.getElementById('roomBillEditPreview').innerHTML = `
+      <div class="billrow"><span>Room + Service Charges</span><span>${money(chargeBase)}</span></div>
+      <div class="billrow"><span>Tax (${taxPct}%)</span><span>${money(taxAmt)}</span></div>
+      <div class="billrow"><span>Discount</span><span>-${money(disc)}</span></div>
+      <div class="billrow"><span>Round Off</span><span>${roundOff>=0?'+':''}${roundOff.toFixed(2)}</span></div>
+      <div class="billrow grand"><span>Grand Total</span><span>${money(grand)}</span></div>
+      <div class="billrow grand" style="color:var(--accent-deep);"><span>Balance Due</span><span>${money(balanceDue)}</span></div>`;
+  };
+  ['reb_tax','reb_disctype','reb_discval'].forEach(id=>{
+    document.getElementById(id).addEventListener(id==='reb_disctype'?'change':'input', updatePreview);
+  });
+  updatePreview();
+}
+async function confirmRoomBillEdit(bookingId){
+  const booking = bookings.find(b=>b.id===bookingId);
+  if(!booking) return;
+  const chargeBase = (booking.roomTotal||0) + (booking.servicesTotal||0);
+  const taxPct = parseFloat(document.getElementById('reb_tax').value)||0;
+  const discType = document.getElementById('reb_disctype').value;
+  const discVal = parseFloat(document.getElementById('reb_discval').value)||0;
+  const disc = discType==='pct' ? chargeBase*discVal/100 : discVal;
+  const taxAmt = chargeBase*taxPct/100;
+  const grandRaw = Math.max(0, chargeBase+taxAmt-disc);
+  const grand = Math.round(grandRaw);
+  const roundOff = Number((grand - grandRaw).toFixed(2));
+  booking.taxPct=taxPct; booking.discountType=discType; booking.discountValue=discVal; booking.discount=disc;
+  booking.taxAmt=taxAmt; booking.roundOff=roundOff; booking.grandTotal=grand;
+  booking.balanceDue = Math.max(0, grand - (booking.advance||0));
+  booking.payment = document.getElementById('reb_pay').value;
+  booking.remark = document.getElementById('reb_remark').value.trim();
+  await persist('bookings');
+  document.getElementById('roomOverlay').classList.remove('active');
+  renderRooms();
+  alert('Room bill update ho gaya. Naya Grand Total: ' + money(grand));
+}
+async function deleteRoomBill(bookingId){
+  if(!isMaster()){ alert('Sirf Master ID hi room bill delete kar sakti hai.'); return; }
+  const booking = bookings.find(b=>b.id===bookingId);
+  if(!booking) return;
+  if(!confirm('Room '+booking.roomNo+' ('+booking.guestName+') ka ye bill/record delete karna hai? Ye history se hamesha ke liye hat jayega.')) return;
+  bookings = bookings.filter(b=>b.id!==bookingId);
+  await persist('bookings');
+  renderRooms();
+}
+function openGuestEditModal(bookingId){
+  if(!isMaster()){ alert('Sirf Master ID guest entry edit kar sakti hai.'); return; }
+  const booking = bookings.find(b=>b.id===bookingId);
+  if(!booking) return;
+  document.getElementById('roomOverlay').classList.add('active');
+  document.getElementById('roomModalTitle').textContent = 'Guest Entry Edit: Room ' + booking.roomNo;
+  const expVal = booking.expectedCheckout ? new Date(new Date(booking.expectedCheckout).getTime()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16) : '';
+  const checkinVal = new Date(new Date(booking.checkinDate).getTime()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
+  document.getElementById('roomModalBody').innerHTML = `
+    <label class="f">Guest Naam<input id="ge_name" value="${(booking.guestName||'').replace(/"/g,'&quot;')}" style="width:100%"></label>
+    <label class="f">Guest Number<input id="ge_phone" value="${(booking.guestPhone||'').replace(/"/g,'&quot;')}" style="width:100%"></label>
+    <label class="f">Guest ID Proof Type<select id="ge_idtype" style="width:100%">
+      ${['Aadhaar','PAN','Driving License','Passport','Voter ID','Other'].map(t=>`<option ${booking.idType===t?'selected':''}>${t}</option>`).join('')}
+    </select></label>
+    <label class="f">Guest ID Proof Number<input id="ge_idno" value="${(booking.idNo||'').replace(/"/g,'&quot;')}" style="width:100%"></label>
+    <label class="f">Guest Address<input id="ge_addr" value="${(booking.guestAddress||'').replace(/"/g,'&quot;')}" style="width:100%"></label>
+    <label class="f">Guest GST No<input id="ge_gst" value="${(booking.guestGst||'').replace(/"/g,'&quot;')}" style="width:100%"></label>
+    <label class="f">No. of Guests<input id="ge_pax" type="number" value="${booking.pax||1}" style="width:100%"></label>
+    <label class="f">Rate Per Night (Rs)<input id="ge_rate" type="number" value="${booking.ratePerNight||0}" style="width:100%"></label>
+    <label class="f">Check-In Date/Time<input id="ge_checkin" type="datetime-local" value="${checkinVal}" style="width:100%"></label>
+    <label class="f">Expected Check-Out Date/Time<input id="ge_expcheckout" type="datetime-local" value="${expVal}" style="width:100%"></label>
+    <label class="f">Advance Payment (Rs)<input id="ge_advance" type="number" value="${booking.advance||0}" style="width:100%"></label>
+    <button class="btn accent" style="width:100%;margin-top:12px;" onclick="confirmGuestEdit('${booking.id}')">Guest Entry Update Karein</button>
+  `;
+}
+async function confirmGuestEdit(bookingId){
+  const booking = bookings.find(b=>b.id===bookingId);
+  if(!booking) return;
+  const name = document.getElementById('ge_name').value.trim();
+  if(!name){ alert('Guest ka naam daalein'); return; }
+  booking.guestName = name;
+  booking.guestPhone = document.getElementById('ge_phone').value.trim();
+  booking.idType = document.getElementById('ge_idtype').value;
+  booking.idNo = document.getElementById('ge_idno').value.trim();
+  booking.guestAddress = document.getElementById('ge_addr').value.trim();
+  booking.guestGst = document.getElementById('ge_gst').value.trim();
+  booking.pax = parseInt(document.getElementById('ge_pax').value) || 1;
+  booking.ratePerNight = parseFloat(document.getElementById('ge_rate').value) || booking.ratePerNight;
+  const checkinRaw = document.getElementById('ge_checkin').value;
+  if(checkinRaw) booking.checkinDate = new Date(checkinRaw).toISOString();
+  const expRaw = document.getElementById('ge_expcheckout').value;
+  booking.expectedCheckout = expRaw ? new Date(expRaw).toISOString() : null;
+  booking.advance = parseFloat(document.getElementById('ge_advance').value) || 0;
+  await persist('bookings');
+  closeRoomModal();
+  alert('Guest entry update ho gayi.');
+}
+function closeRoomModal(){
+  document.getElementById('roomOverlay').classList.remove('active');
+  renderRooms();
+}
+function openRoomModal(roomId){
+  const r = rooms.find(x=>x.id===roomId);
+  if(!r) return;
+  document.getElementById('roomOverlay').classList.add('active');
+  if(r.status==='vacant'){
+    document.getElementById('roomModalTitle').textContent = 'Check-In: Room ' + r.roomNo;
+    document.getElementById('roomModalBody').innerHTML = `
+      <label class="f">Guest Naam<input id="ci_name" style="width:100%"></label>
+      <label class="f">Guest Number<input id="ci_phone" style="width:100%"></label>
+      <label class="f">Guest ID Proof Type<select id="ci_idtype" style="width:100%"><option>Aadhaar</option><option>PAN</option><option>Driving License</option><option>Passport</option><option>Voter ID</option><option>Other</option></select></label>
+      <label class="f">Guest ID Proof Number<input id="ci_idno" style="width:100%"></label>
+      <label class="f">Guest Address<input id="ci_addr" style="width:100%"></label>
+      <label class="f">Guest GST No (agar ho)<input id="ci_gst" style="width:100%"></label>
+      <label class="f">No. of Guests<input id="ci_pax" type="number" value="1" style="width:100%"></label>
+      <label class="f">Rate Per Night (Rs)<input id="ci_rate" type="number" value="${r.rate}" style="width:100%"></label>
+      <label class="f">Check-In Date/Time<input id="ci_checkin" type="datetime-local" value="${new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16)}" style="width:100%"></label>
+      <label class="f">Expected Check-Out Date/Time<input id="ci_expcheckout" type="datetime-local" style="width:100%"></label>
+      <label class="f">Advance Payment (Rs)<input id="ci_advance" type="number" value="0" style="width:100%"></label>
+      <button class="btn accent" style="width:100%;margin-top:12px;" onclick="confirmCheckin('${r.id}')">Check-In Karein</button>
+    `;
+  } else {
+    const booking = bookings.find(b=>b.id===r.currentBookingId && b.status==='active');
+    if(!booking){ document.getElementById('roomModalBody').innerHTML = `<div class="empty-hint">Booking nahi mili.</div>`; return; }
+    const nights = Math.max(1, Math.ceil((Date.now() - new Date(booking.checkinDate).getTime())/86400000));
+    const roomTotal = nights * (booking.ratePerNight || 0);
+    const servicesTotal = (booking.services||[]).reduce((s,x)=>s+x.amount,0);
+    document.getElementById('roomModalTitle').textContent = 'Room ' + r.roomNo + ' - ' + booking.guestName;
+    document.getElementById('roomModalBody').innerHTML = `
+      <div class="billbox">
+        <div><b>Guest:</b> ${booking.guestName}</div>
+        ${booking.guestPhone ? `<div><b>Phone:</b> ${booking.guestPhone}</div>` : ''}
+        ${booking.idType ? `<div><b>ID Proof:</b> ${booking.idType} - ${booking.idNo||''}</div>` : ''}
+        ${booking.guestAddress ? `<div><b>Address:</b> ${booking.guestAddress}</div>` : ''}
+        ${booking.guestGst ? `<div><b>GST:</b> ${booking.guestGst}</div>` : ''}
+        ${booking.pax ? `<div><b>Guests:</b> ${booking.pax}</div>` : ''}
+        <div style="margin-top:8px;"><b>Check-in:</b> ${new Date(booking.checkinDate).toLocaleString('en-IN')}</div>
+        ${booking.expectedCheckout ? `<div><b>Expected Check-Out:</b> ${new Date(booking.expectedCheckout).toLocaleString('en-IN')}</div>` : ''}
+        <div><b>Nights So Far:</b> ${nights}</div>
+        <div><b>Rate/Night:</b> ${money(booking.ratePerNight)}</div>
+        <div><b>Advance Paid:</b> ${money(booking.advance||0)}</div>
+        ${(booking.transferHistory && booking.transferHistory.length) ? `<div style="margin-top:6px;font-size:12px;color:var(--ink-soft);"><b>Transfer History:</b> ${booking.transferHistory.map(t=>'Room '+t.fromRoom+' &rarr; Room '+t.toRoom+' ('+new Date(t.date).toLocaleString('en-IN')+')').join(', ')}</div>` : ''}
+        <div style="margin-top:6px;font-weight:700;">Estimated Room Charge: ${money(roomTotal)}</div>
+      </div>
+      <div class="billbox">
+        <div style="font-weight:700;margin-bottom:6px;">Additional Services / Room Service Charges</div>
+        ${(booking.services||[]).length ? `<table class="datatable"><thead><tr><th>Service</th><th class="num">Amount</th><th></th></tr></thead><tbody>
+          ${booking.services.map((sv,idx)=>`<tr><td>${sv.name}</td><td class="num">${money(sv.amount)}</td><td><button class="rm-btn" onclick="removeService('${booking.id}',${idx})">&times;</button></td></tr>`).join('')}
+        </tbody></table><div style="text-align:right;font-weight:700;margin-top:4px;">Services Total: ${money(servicesTotal)}</div>` : `<div class="empty-hint" style="padding:10px 0;">Koi additional service add nahi hui</div>`}
+        <div class="formgrid" style="margin-top:10px;">
+          <label class="f">Service Naam<input id="sv_name" placeholder="e.g. Laundry / Room Service" style="width:100%"></label>
+          <label class="f">Amount (Rs)<input id="sv_amount" type="number" style="width:100%"></label>
+          <button class="btn ghost small" onclick="addService('${booking.id}')">+ Add Service</button>
+        </div>
+      </div>
+      <button class="btn ghost" style="width:100%;margin-top:10px;" onclick="printRegistrationCard('${booking.id}')">Guest Registration Card Print Karein</button>
+      ${isMaster() ? `<button class="btn ghost" style="width:100%;margin-top:8px;" onclick="openGuestEditModal('${booking.id}')">Guest Entry Edit Karein (Master)</button>` : ''}
+      <button class="btn ghost" style="width:100%;margin-top:8px;" onclick="openRoomFoodOrder('${booking.id}')">Room Mein Fooding - KOT / Bill Banayein</button>
+      <button class="btn ghost" style="width:100%;margin-top:8px;" onclick="openRoomTransferPicker('${booking.id}')">Dusre Room Mein Shift Karein (Transfer)</button>
+      <div id="roomTransferBox"></div>
+      <button class="btn accent" style="width:100%;margin-top:8px;" onclick="openCheckoutBilling('${booking.id}')">Check-Out &amp; Bill Banayein</button>
+    `;
+  }
+}
+function openRoomTransferPicker(bookingId){
+  const booking = bookings.find(b=>b.id===bookingId);
+  if(!booking) return;
+  const freeRooms = rooms.filter(rm=>rm.status==='vacant' && rm.id!==booking.roomId);
+  const box = document.getElementById('roomTransferBox');
+  if(!box) return;
+  if(freeRooms.length===0){
+    box.innerHTML = `<div class="empty-hint">Koi khaali room nahi hai transfer karne ke liye.</div>`;
+    return;
+  }
+  box.innerHTML = `<div class="billbox">
+    <label class="f">Kis Room Mein Shift Karein?
+      <select id="roomTransferTarget">${freeRooms.map(rm=>`<option value="${rm.id}">Room ${rm.roomNo} (${rm.type} - ${money(rm.rate)}/night)</option>`).join('')}</select>
+    </label>
+    <label class="chk" style="margin-top:8px;"><input type="checkbox" id="roomTransferUseNewRate"> Naye room ki rate use karein (warna purani rate hi rahegi)</label>
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <button class="btn accent small" onclick="confirmRoomTransfer('${booking.id}')">Transfer Confirm Karein</button>
+      <button class="btn ghost small" onclick="document.getElementById('roomTransferBox').innerHTML=''">Cancel</button>
+    </div>
+  </div>`;
+}
+async function confirmRoomTransfer(bookingId){
+  const booking = bookings.find(b=>b.id===bookingId);
+  if(!booking) return;
+  const targetId = document.getElementById('roomTransferTarget').value;
+  const useNewRate = document.getElementById('roomTransferUseNewRate').checked;
+  const oldRoom = rooms.find(rm=>rm.id===booking.roomId);
+  const newRoom = rooms.find(rm=>rm.id===targetId);
+  if(!newRoom || newRoom.status!=='vacant'){ alert('Ye room ab khaali nahi hai.'); return; }
+  if(!booking.transferHistory) booking.transferHistory = [];
+  booking.transferHistory.push({fromRoom: booking.roomNo, toRoom: newRoom.roomNo, date: new Date().toISOString(), by: currentUser.username});
+  if(oldRoom){ oldRoom.status='cleaning'; oldRoom.currentBookingId=null; }
+  newRoom.status='occupied'; newRoom.currentBookingId=booking.id;
+  booking.roomId = newRoom.id; booking.roomNo = newRoom.roomNo;
+  if(useNewRate) booking.ratePerNight = newRoom.rate;
+  await persist('rooms'); await persist('bookings');
+  alert('Guest ab Room '+newRoom.roomNo+' mein shift ho gaye hain. Purana room "Cleaning Pending" status mein hai.');
+  closeRoomModal();
+}
+async function addService(bookingId){
+  const booking = bookings.find(b=>b.id===bookingId);
+  if(!booking) return;
+  const name = document.getElementById('sv_name').value.trim();
+  const amount = parseFloat(document.getElementById('sv_amount').value)||0;
+  if(!name || !amount){ alert('Service ka naam aur amount daalein'); return; }
+  if(!booking.services) booking.services=[];
+  booking.services.push({name, amount, date:new Date().toISOString()});
+  await persist('bookings');
+  openRoomModal(booking.roomId);
+}
+async function removeService(bookingId, idx){
+  const booking = bookings.find(b=>b.id===bookingId);
+  if(!booking || !booking.services) return;
+  booking.services.splice(idx,1);
+  await persist('bookings');
+  openRoomModal(booking.roomId);
+}
+async function confirmCheckin(roomId){
+  const r = rooms.find(x=>x.id===roomId);
+  if(!r) return;
+  const name = document.getElementById('ci_name').value.trim();
+  if(!name){ alert('Guest ka naam daalein'); return; }
+  const phone = document.getElementById('ci_phone').value.trim();
+  const idType = document.getElementById('ci_idtype').value;
+  const idNo = document.getElementById('ci_idno').value.trim();
+  const addr = document.getElementById('ci_addr').value.trim();
+  const gst = document.getElementById('ci_gst').value.trim();
+  const pax = parseInt(document.getElementById('ci_pax').value) || 1;
+  const rate = parseFloat(document.getElementById('ci_rate').value) || r.rate;
+  const checkinRaw = document.getElementById('ci_checkin').value;
+  const checkinDate = checkinRaw ? new Date(checkinRaw).toISOString() : new Date().toISOString();
+  const expCheckoutRaw = document.getElementById('ci_expcheckout').value;
+  const expectedCheckout = expCheckoutRaw ? new Date(expCheckoutRaw).toISOString() : null;
+  const advance = parseFloat(document.getElementById('ci_advance').value) || 0;
+  const booking = {id:uid(), roomId:r.id, roomNo:r.roomNo, guestName:name, guestPhone:phone, idType, idNo, guestAddress:addr, guestGst:gst, pax, checkinDate, expectedCheckout, advance, ratePerNight:rate, services:[], checkedInBy: currentUser.username, status:'active', checkoutDate:null};
+  bookings.push(booking);
+  r.status='occupied'; r.currentBookingId=booking.id;
+  await persist('bookings'); await persist('rooms');
+  closeRoomModal();
+}
+function printRegistrationCard(bookingId){
+  const booking = bookings.find(b=>b.id===bookingId);
+  if(!booking) return;
+  const body = `<div class="sheet">
+      <div class="brandbar">
+        <div class="left">
+          ${settings.logo ? `<img class="logo" src="${settings.logo}">` : ''}
+          <div>
+            <h1>${settings.hotelName||'Hotel'}</h1>
+            <div class="taglinerow">${settings.address||''}${settings.phone?' &nbsp;|&nbsp; Ph: '+settings.phone:''}</div>
+          </div>
+        </div>
+        <div class="right"><span class="doctag">Guest Registration Card</span></div>
+      </div>
+      <div class="metagrid">
+        <div class="mi"><span>Room No</span><b>${booking.roomNo}</b></div>
+        <div class="mi"><span>Rate / Night</span><b>Rs ${Math.round(booking.ratePerNight||0)}</b></div>
+        <div class="mi"><span>Check-In</span><b>${new Date(booking.checkinDate).toLocaleString('en-IN')}</b></div>
+        <div class="mi"><span>Expected Check-Out</span><b>${booking.expectedCheckout ? new Date(booking.expectedCheckout).toLocaleString('en-IN') : '-'}</b></div>
+      </div>
+      <div class="custblock">
+        <div class="lbl">Guest Details</div>
+        <b>${booking.guestName}</b><br>
+        ${booking.guestPhone ? 'Ph: '+booking.guestPhone+'<br>' : ''}
+        ID Proof: ${(booking.idType||'-')+' '+(booking.idNo||'')}<br>
+        ${booking.guestAddress ? 'Address: '+booking.guestAddress+'<br>' : ''}
+        No. of Guests: ${booking.pax||1}
+      </div>
+      <div class="signrow">
+        <div>Guest Signature</div>
+        <div>Front Office Signature</div>
+      </div>
+      <div class="terms"><b>Note:</b> Check-out time is as per hotel policy. Guests are requested to carry a valid government ID at all times during their stay.</div>
+    </div>`;
+  printDocument('Guest Registration - Room '+booking.roomNo, invoiceStyleBlock(true), body);
+}
+function openCheckoutBilling(bookingId){
+  const booking = bookings.find(b=>b.id===bookingId);
+  if(!booking) return;
+  const nights = Math.max(1, Math.ceil((Date.now() - new Date(booking.checkinDate).getTime())/86400000));
+  const roomTotal = nights * (booking.ratePerNight || 0);
+  const servicesTotal = (booking.services||[]).reduce((s,x)=>s+x.amount,0);
+  const chargeBase = roomTotal + servicesTotal;
+  const discLocked = !canDiscount();
+  document.getElementById('roomModalTitle').textContent = 'Check-Out: Room ' + booking.roomNo;
+  document.getElementById('roomModalBody').innerHTML = `
+    <div class="billbox">
+      <div><b>Guest:</b> ${booking.guestName}</div>
+      <div style="margin-top:4px;"><b>Nights:</b> ${nights} x ${money(booking.ratePerNight)} = ${money(roomTotal)}</div>
+      <div><b>Additional Services:</b> ${money(servicesTotal)}</div>
+      <div><b>Advance Already Paid:</b> ${money(booking.advance||0)}</div>
+      <div class="formgrid" style="margin-top:10px;">
+        <label class="f">Tax %<input id="rb_tax" type="number" value="5" style="width:100%"></label>
+        <label class="f">Discount Type<select id="rb_disctype" style="width:100%" ${discLocked?'disabled':''}><option value="pct">Percent (%)</option><option value="amt">Amount (Rs)</option></select></label>
+        <label class="f">Discount Value ${discLocked?'<span style="color:var(--bad);font-weight:600;">(Ijazat Nahi)</span>':`<span style="color:var(--ink-soft);font-weight:500;">(Max ${maxDiscountAllowed()}%)</span>`}<input id="rb_discval" type="number" value="0" style="width:100%" ${discLocked?'disabled':''}></label>
+        <label class="f">Payment Mode<select id="rb_pay" style="width:100%"><option>Cash</option><option>UPI</option><option>Card</option><option>Net Banking</option></select></label>
+      </div>
+      <label class="f" style="margin-top:10px;">Remark / Note (bill par print hoga)<input id="rb_remark" style="width:100%" placeholder="e.g. Late checkout waived, early checkin, etc."></label>
+      <div id="roomBillPreview" style="margin-top:8px;"></div>
+    </div>
+    <button class="btn accent" style="width:100%;margin-top:10px;" onclick="confirmCheckout('${booking.id}', ${nights}, ${roomTotal}, ${servicesTotal})">Check-Out Confirm Karein</button>
+  `;
+  ['rb_tax','rb_disctype','rb_discval'].forEach(id=>{
+    document.getElementById(id).addEventListener(id==='rb_disctype'?'change':'input', ()=>updateRoomBillPreview(chargeBase, booking.advance||0));
+  });
+  updateRoomBillPreview(chargeBase, booking.advance||0);
+}
+function computeRoomDiscountAmt(chargeBase){
+  if(!canDiscount()) return 0;
+  const limit = maxDiscountAllowed();
+  const discType = document.getElementById('rb_disctype').value;
+  let discVal = parseFloat(document.getElementById('rb_discval').value)||0;
+  if(discType==='pct'){
+    if(discVal > limit) discVal = limit;
+    return chargeBase*discVal/100;
+  } else {
+    const maxAmt = chargeBase*limit/100;
+    return Math.min(discVal, maxAmt);
+  }
+}
+function updateRoomBillPreview(chargeBase, advance){
+  const taxPct = parseFloat(document.getElementById('rb_tax').value)||0;
+  const discType = document.getElementById('rb_disctype').value;
+  const discVal = parseFloat(document.getElementById('rb_discval').value)||0;
+  const disc = computeRoomDiscountAmt(chargeBase);
+  const taxAmt = chargeBase*taxPct/100;
+  const grandRaw = Math.max(0, chargeBase+taxAmt-disc);
+  const grand = Math.round(grandRaw);
+  const roundOff = grand - grandRaw;
+  const balanceDue = Math.max(0, grand - (advance||0));
+  document.getElementById('roomBillPreview').innerHTML = `
+    <div class="billrow"><span>Room + Service Charges</span><span>${money(chargeBase)}</span></div>
+    <div class="billrow"><span>Tax (${taxPct}%)</span><span>${money(taxAmt)}</span></div>
+    <div class="billrow"><span>Discount${discType==='pct'?' ('+discVal+'%)':''}</span><span>-${money(disc)}</span></div>
+    <div class="billrow"><span>Round Off</span><span>${roundOff>=0?'+':''}${roundOff.toFixed(2)}</span></div>
+    <div class="billrow grand"><span>Grand Total</span><span>${money(grand)}</span></div>
+    <div class="billrow"><span>Advance Paid</span><span>-${money(advance||0)}</span></div>
+    <div class="billrow grand" style="color:var(--accent-deep);"><span>Balance Due</span><span>${money(balanceDue)}</span></div>`;
+}
+async function confirmCheckout(bookingId, nights, roomTotal, servicesTotal){
+  const booking = bookings.find(b=>b.id===bookingId);
+  if(!booking) return;
+  const chargeBase = roomTotal + (servicesTotal||0);
+  const taxPct = parseFloat(document.getElementById('rb_tax').value)||0;
+  const discType = document.getElementById('rb_disctype').value;
+  const rawDiscVal = canDiscount() ? (parseFloat(document.getElementById('rb_discval').value)||0) : 0;
+  const discVal = canDiscount() ? (discType==='pct' ? Math.min(rawDiscVal, maxDiscountAllowed()) : rawDiscVal) : 0;
+  const disc = computeRoomDiscountAmt(chargeBase);
+  const taxAmt = chargeBase*taxPct/100;
+  const grandRaw = Math.max(0, chargeBase+taxAmt-disc);
+  const grand = Math.round(grandRaw);
+  const roundOff = Number((grand - grandRaw).toFixed(2));
+  const pay = document.getElementById('rb_pay').value;
+  const remark = document.getElementById('rb_remark').value.trim();
+  const balanceDue = Math.max(0, grand - (booking.advance||0));
+
+  booking.status='closed';
+  booking.checkoutDate = new Date().toISOString();
+  booking.checkedOutBy = currentUser.username;
+  booking.nights = nights; booking.roomTotal = roomTotal; booking.servicesTotal = servicesTotal||0;
+  booking.taxPct=taxPct; booking.taxAmt=taxAmt; booking.discountType=discType; booking.discountValue=discVal; booking.discount=disc;
+  booking.roundOff=roundOff; booking.grandTotal=grand; booking.payment=pay; booking.balanceDue=balanceDue; booking.remark=remark;
+
+  const r = rooms.find(x=>x.id===booking.roomId);
+  if(r){ r.status='cleaning'; r.currentBookingId=null; }
+
+  await persist('bookings'); await persist('rooms');
+  closeRoomModal();
+  const doPrint = confirm('Room '+booking.roomNo+' check-out ho gaya. Grand Total: '+money(grand)+'. Room ab "Cleaning Pending" status mein hai.\n\nInvoice print/PDF karna hai?');
+  if(doPrint) printRoomBill(booking);
+}
+async function markRoomReady(roomId){
+  const r = rooms.find(x=>x.id===roomId);
+  if(!r) return;
+  r.status = 'vacant';
+  await persist('rooms');
+  renderRooms();
+}
+function reprintRoomBill(bookingId){
+  const booking = bookings.find(b=>b.id===bookingId);
+  if(!booking){ alert('Ye booking record nahi mila.'); return; }
+  printRoomBill(booking);
+}
+function printRoomBill(booking){
+  chooseAndPrintInvoice(buildRoomInvoiceData(booking), true);
+}
+
+/* ---------------- STOCK ---------------- */
+function refreshStockItemSelect(){
+  const sel = document.getElementById('st_item');
+  sel.innerHTML = items.map(i=>`<option value="${i.id}">${i.name}</option>`).join('');
+}
+async function addStock(){
+  const itemId = document.getElementById('st_item').value;
+  const qty = parseFloat(document.getElementById('st_qty').value);
+  const note = document.getElementById('st_note').value.trim();
+  const item = items.find(i=>i.id===itemId);
+  if(!item || !qty){ alert('Item aur quantity sahi se daalein'); return; }
+  item.stock += qty;
+  stockMoves.push({id:uid(), date:new Date().toISOString(), itemId:item.id, itemName:item.name, type:'in', qty, note});
+  await persist('items'); await persist('stockMoves');
+  document.getElementById('st_qty').value=''; document.getElementById('st_note').value='';
+  renderStock();
+}
+function renderStock(){
+  refreshStockItemSelect();
+  const tbody = document.querySelector('#stockTable tbody');
+  tbody.innerHTML = items.map(i=>{
+    const low = i.stock<=i.reorder;
+    return `<tr><td>${i.name}</td><td class="num">${i.stock}</td><td class="num">${i.reorder}</td>
+      <td>${low ? '<span class="pill bad">Low Stock</span>' : '<span class="pill good">OK</span>'}</td></tr>`;
+  }).join('') || `<tr><td colspan="4" class="empty-hint">Koi item nahi hai.</td></tr>`;
+
+  const mtbody = document.querySelector('#stockMoveTable tbody');
+  const recent = [...stockMoves].reverse().slice(0,25);
+  mtbody.innerHTML = recent.map(m=>`
+    <tr><td>${new Date(m.date).toLocaleString('en-IN')}</td><td>${m.itemName}</td>
+    <td>${m.type==='in' ? '<span class="pill good">IN</span>' : '<span class="pill bad">OUT</span>'}</td>
+    <td class="num">${m.qty}</td><td>${m.note||''}</td></tr>`).join('') || `<tr><td colspan="5" class="empty-hint">Koi movement nahi hai.</td></tr>`;
+}
+
+/* ---------------- DASHBOARD ---------------- */
+function renderDashboard(){
+  const today = todayISO();
+  const todaySales = sales.filter(s=>s.date.slice(0,10)===today);
+  const revenue = todaySales.reduce((s,x)=>s+x.grandTotal,0);
+  const occupied = tables.filter(t=>t.status==='occupied').length;
+  const lowStockCount = items.filter(i=>i.stock<=i.reorder).length;
+
+  document.getElementById('dashStats').innerHTML = `
+    <div class="stat"><div class="label">Aaj Ki Sale</div><div class="value">${money(revenue)}</div><div class="sub">${todaySales.length} bills</div></div>
+    <div class="stat"><div class="label">Occupied Tables</div><div class="value">${occupied} / ${tables.length}</div><div class="sub">abhi ki halat</div></div>
+    <div class="stat"><div class="label">Low Stock Items</div><div class="value">${lowStockCount}</div><div class="sub">reorder level ke neeche</div></div>
+    <div class="stat"><div class="label">Total Menu Items</div><div class="value">${items.length}</div><div class="sub">active items</div></div>
+  `;
+
+  const agg = {};
+  todaySales.forEach(s=> s.lines.forEach(l=>{
+    if(!agg[l.itemId]) agg[l.itemId] = {name:l.name, qty:0, rev:0};
+    agg[l.itemId].qty += l.qty; agg[l.itemId].rev += l.total;
+  }));
+  const top = Object.values(agg).sort((a,b)=>b.rev-a.rev).slice(0,8);
+  document.querySelector('#dashTopItems tbody').innerHTML = top.map(t=>`
+    <tr><td>${t.name}</td><td class="num">${t.qty}</td><td class="num">${money(t.rev)}</td></tr>`).join('')
+    || `<tr><td colspan="3" class="empty-hint">Aaj abhi tak koi sale nahi hui.</td></tr>`;
+
+  const low = items.filter(i=>i.stock<=i.reorder);
+  document.querySelector('#dashLowStock tbody').innerHTML = low.map(i=>`
+    <tr><td>${i.name}</td><td class="num">${i.stock}</td><td class="num">${i.reorder}</td></tr>`).join('')
+    || `<tr><td colspan="3" class="empty-hint">Sabhi items ka stock theek hai.</td></tr>`;
+}
+
+/* ---------------- REPORTS ---------------- */
+let reportTab = 'item';
+function setReportRange(mode){
+  reportRangeMode = mode;
+  document.querySelectorAll('[data-range]').forEach(b=>b.classList.toggle('accent', b.dataset.range===mode));
+  const now = new Date();
+  if(mode==='daily'){ reportFrom = todayISO(); reportTo = todayISO(); }
+  else if(mode==='monthly'){ reportFrom = now.toISOString().slice(0,8)+'01'; reportTo = todayISO(); }
+  else if(mode==='yearly'){ reportFrom = now.getFullYear()+'-01-01'; reportTo = todayISO(); }
+  else if(mode==='custom'){ reportFrom = document.getElementById('rp_from').value || todayISO(); reportTo = document.getElementById('rp_to').value || todayISO(); }
+  renderReports();
+}
+function setReportTab(tab){
+  reportTab = tab;
+  renderReports();
+}
+function filteredSales(){
+  if(!reportFrom) setReportRange('daily');
+  return sales.filter(s=>{ const d = s.date.slice(0,10); return d>=reportFrom && d<=reportTo; });
+}
+function renderReports(){
+  if(!reportFrom){ setReportRange('daily'); return; }
+  const list = filteredSales();
+  const revenue = list.reduce((s,x)=>s+x.grandTotal,0);
+  const avg = list.length ? revenue/list.length : 0;
+  const totalTax = list.reduce((s,x)=>s+(x.taxAmt||0),0);
+  const totalDisc = list.reduce((s,x)=>s+(x.discount||0),0);
+
+  document.getElementById('reportStats').innerHTML = `
+    <div class="stat"><div class="label">Total Revenue</div><div class="value">${money(revenue)}</div><div class="sub">${reportFrom} se ${reportTo}</div></div>
+    <div class="stat"><div class="label">Total Bills</div><div class="value">${list.length}</div></div>
+    <div class="stat"><div class="label">Average Bill Value</div><div class="value">${money(avg)}</div></div>
+    <div class="stat"><div class="label">Total Tax Collected</div><div class="value">${money(totalTax)}</div></div>
+    <div class="stat"><div class="label">Total Discount</div><div class="value">${money(totalDisc)}</div></div>
+  `;
+
+  let tabBar = document.getElementById('reportTabBar');
+  if(!tabBar){
+    tabBar = document.createElement('div');
+    tabBar.id = 'reportTabBar';
+    tabBar.className = 'cat-tabs';
+    tabBar.style.marginBottom = '14px';
+    const statsEl = document.getElementById('reportStats');
+    statsEl.parentNode.insertBefore(tabBar, statsEl.nextSibling);
+  }
+  const tabs = [
+    {key:'item', label:'Item-wise Report'},
+    {key:'bill', label:'Bill-wise Report'},
+    {key:'gst', label:'GST Report'},
+    {key:'customer', label:'Customer Report'},
+    {key:'room', label:'Room / Front Office Report'},
+  ];
+  tabBar.innerHTML = tabs.map(t=>`<div class="cat-chip ${reportTab===t.key?'active':''}" onclick="setReportTab('${t.key}')">${t.label}</div>`).join('');
+
+  const oldPanels = ['reportTable','billsTable'].map(id=>document.getElementById(id)?.closest('.panel')).filter(Boolean);
+  oldPanels.forEach(p=> p.style.display='none');
+
+  let dynPanel = document.getElementById('reportDynPanel');
+  if(!dynPanel){
+    dynPanel = document.createElement('div');
+    dynPanel.id = 'reportDynPanel';
+    tabBar.parentNode.insertBefore(dynPanel, tabBar.nextSibling);
+  }
+
+  const agg = {};
+  list.forEach(s=> s.lines.forEach(l=>{
+    if(!agg[l.itemId]) agg[l.itemId] = {name:l.name, qty:0, rev:0};
+    agg[l.itemId].qty += l.qty; agg[l.itemId].rev += l.total;
+  }));
+  const arr = Object.values(agg).sort((a,b)=>b.rev-a.rev);
+  window._currentReportAgg = arr;
+  window._currentReportBills = list;
+
+  if(reportTab==='item'){
+    const maxRev = arr.length ? arr[0].rev : 1;
+    dynPanel.innerHTML = `<div class="panel"><h2 class="sectitle">Item-wise Sale Report</h2>
+      <table class="datatable"><thead><tr><th>Item</th><th class="num">Qty Sold</th><th class="num">Revenue</th><th style="width:120px;">Share</th></tr></thead>
+      <tbody>${arr.map(a=>`<tr><td>${a.name}</td><td class="num">${a.qty}</td><td class="num">${money(a.rev)}</td>
+        <td><div class="barwrap"><div class="barfill" style="width:${(a.rev/maxRev*100).toFixed(0)}%"></div></div></td></tr>`).join('') || `<tr><td colspan="4" class="empty-hint">Is range mein koi sale nahi hai.</td></tr>`}</tbody></table>
+    </div>`;
+  } else if(reportTab==='bill'){
+    dynPanel.innerHTML = `<div class="panel"><h2 class="sectitle">Bill-wise Report</h2>
+      <table class="datatable"><thead><tr><th>Sr.No</th><th>Bill#</th><th>Date</th><th>Time</th><th>Table</th><th class="num">Gross Amount</th><th class="num">Taxable Amount</th><th class="num">Discount</th><th class="num">Round Off</th><th>User</th><th>Payment Mode</th><th style="width:140px;">Actions</th></tr></thead>
+      <tbody>${[...list].reverse().map((s,idx)=>`<tr>
+        <td>${list.length-idx}</td>
+        <td>${s.id}</td>
+        <td>${new Date(s.date).toLocaleDateString('en-IN')}</td>
+        <td>${new Date(s.date).toLocaleTimeString('en-IN')}</td>
+        <td>${s.tableName}</td>
+        <td class="num">${money(s.subtotal + (s.taxAmt||0))}</td>
+        <td class="num">${money(s.subtotal)}</td>
+        <td class="num">${money(s.discount)}</td>
+        <td class="num">${(s.roundOff!==undefined ? (s.roundOff>=0?'+':'')+s.roundOff.toFixed(2) : '0.00')}</td>
+        <td>${s.staffName||'-'}</td>
+        <td>${s.payment}</td>
+        <td>
+          <button class="btn ghost small" onclick="printSaleById('${s.id}')">Print</button>
+          ${currentUser && currentUser.role==='master' ? `<button class="btn ghost small" onclick="openBillEditor('${s.id}')">Edit</button> <button class="btn danger small" onclick="deleteBill('${s.id}')">Delete</button>` : ''}
+        </td>
+      </tr>`).join('') || `<tr><td colspan="12" class="empty-hint">Koi bill nahi mila.</td></tr>`}</tbody></table>
+    </div>`;
+  } else if(reportTab==='gst'){
+    const gstRows = list.map(s=>{
+      const cgst = (s.taxAmt||0)/2, sgst = (s.taxAmt||0)/2;
+      return {id:s.id, date:s.date, taxable:s.subtotal, taxPct:s.taxPct, cgst, sgst, totalTax:s.taxAmt||0, grand:s.grandTotal, custGst:s.customerGst||'-'};
+    });
+    const totTaxable = gstRows.reduce((a,r)=>a+r.taxable,0);
+    const totCgst = gstRows.reduce((a,r)=>a+r.cgst,0);
+    const totSgst = gstRows.reduce((a,r)=>a+r.sgst,0);
+    const totTax = gstRows.reduce((a,r)=>a+r.totalTax,0);
+    dynPanel.innerHTML = `<div class="panel"><h2 class="sectitle">GST Report (CGST + SGST)</h2>
+      <table class="datatable"><thead><tr><th>Bill#</th><th>Date</th><th>Customer GSTIN</th><th class="num">Taxable Amount</th><th>Tax %</th><th class="num">CGST</th><th class="num">SGST</th><th class="num">Total Tax</th><th class="num">Bill Total</th></tr></thead>
+      <tbody>${gstRows.map(r=>`<tr><td>${r.id}</td><td>${new Date(r.date).toLocaleDateString('en-IN')}</td><td>${r.custGst}</td>
+        <td class="num">${money(r.taxable)}</td><td>${r.taxPct}%</td><td class="num">${money(r.cgst)}</td><td class="num">${money(r.sgst)}</td>
+        <td class="num">${money(r.totalTax)}</td><td class="num">${money(r.grand)}</td></tr>`).join('') || `<tr><td colspan="9" class="empty-hint">Is range mein koi bill nahi hai.</td></tr>`}
+      </tbody>
+      <tfoot><tr style="font-weight:700;"><td colspan="3">Total</td><td class="num">${money(totTaxable)}</td><td></td><td class="num">${money(totCgst)}</td><td class="num">${money(totSgst)}</td><td class="num">${money(totTax)}</td><td></td></tr></tfoot>
+      </table>
+    </div>`;
+  } else if(reportTab==='customer'){
+    const custAgg = {};
+    list.forEach(s=>{
+      const key = (s.customerPhone && s.customerPhone.trim()) || (s.customerName && s.customerName.trim()) || 'Walk-in / Unknown';
+      if(!custAgg[key]) custAgg[key] = {name:s.customerName||'-', phone:s.customerPhone||'-', gst:s.customerGst||'-', visits:0, total:0, lastVisit:s.date};
+      custAgg[key].visits += 1;
+      custAgg[key].total += s.grandTotal;
+      if(new Date(s.date) > new Date(custAgg[key].lastVisit)) custAgg[key].lastVisit = s.date;
+    });
+    const custArr = Object.values(custAgg).sort((a,b)=>b.total-a.total);
+    dynPanel.innerHTML = `<div class="panel"><h2 class="sectitle">Customer Report</h2>
+      <table class="datatable"><thead><tr><th>Customer Name</th><th>Phone</th><th>GSTIN</th><th class="num">Visits</th><th class="num">Total Spend</th><th>Last Visit</th></tr></thead>
+      <tbody>${custArr.map(c=>`<tr><td>${c.name}</td><td>${c.phone}</td><td>${c.gst}</td><td class="num">${c.visits}</td><td class="num">${money(c.total)}</td><td>${new Date(c.lastVisit).toLocaleString('en-IN')}</td></tr>`).join('') || `<tr><td colspan="6" class="empty-hint">Is range mein koi customer data nahi hai.</td></tr>`}</tbody></table>
+    </div>`;
+  } else if(reportTab==='room'){
+    const roomList = bookings.filter(b=> b.status==='closed' && b.checkoutDate && b.checkoutDate.slice(0,10)>=reportFrom && b.checkoutDate.slice(0,10)<=reportTo);
+    const roomRevenue = roomList.reduce((s,b)=>s+(b.grandTotal||0),0);
+    const roomTax = roomList.reduce((s,b)=>s+(b.taxAmt||0),0);
+    const roomNightsTotal = roomList.reduce((s,b)=>s+(b.nights||0),0);
+    window._currentRoomReportList = roomList;
+    dynPanel.innerHTML = `<div class="panel">
+      <h2 class="sectitle">Room / Front Office Report (${reportFrom} se ${reportTo})</h2>
+      <div class="cardrow" style="margin-bottom:14px;">
+        <div class="stat"><div class="label">Total Room Revenue</div><div class="value">${money(roomRevenue)}</div></div>
+        <div class="stat"><div class="label">Total Check-Outs</div><div class="value">${roomList.length}</div></div>
+        <div class="stat"><div class="label">Total Room-Nights</div><div class="value">${roomNightsTotal}</div></div>
+        <div class="stat"><div class="label">Total Tax Collected</div><div class="value">${money(roomTax)}</div></div>
+      </div>
+      <table class="datatable"><thead><tr><th>Sl.No</th><th>Room</th><th>Guest</th><th>Check-In</th><th>Check-Out</th><th class="num">Nights</th><th class="num">Room Charge</th><th class="num">Services</th><th class="num">Tax</th><th class="num">Discount</th><th class="num">Grand Total</th><th>User</th><th>Payment</th></tr></thead>
+      <tbody>${[...roomList].reverse().map((b,idx)=>`<tr>
+        <td>${roomList.length-idx}</td><td>${b.roomNo}</td><td>${b.guestName}</td>
+        <td>${new Date(b.checkinDate).toLocaleDateString('en-IN')}</td>
+        <td>${new Date(b.checkoutDate).toLocaleDateString('en-IN')}</td>
+        <td class="num">${b.nights||0}</td>
+        <td class="num">${money(b.roomTotal||0)}</td>
+        <td class="num">${money(b.servicesTotal||0)}</td>
+        <td class="num">${money(b.taxAmt||0)}</td>
+        <td class="num">${money(b.discount||0)}</td>
+        <td class="num">${money(b.grandTotal||0)}</td>
+        <td>${b.checkedOutBy||'-'}</td>
+        <td>${b.payment||'-'}</td>
+      </tr>`).join('') || `<tr><td colspan="13" class="empty-hint">Is range mein koi checked-out booking nahi hai.</td></tr>`}</tbody></table>
+    </div>`;
+  }
+}
+function exportReportExcel(){
+  const arr = window._currentReportAgg || [];
+  const list = window._currentReportBills || [];
+  if(typeof XLSX === 'undefined'){ alert('Excel library load nahi ho payi. Internet connection check karein.'); return; }
+  const wb = XLSX.utils.book_new();
+
+  const itemRows = [['Item','Qty Sold','Revenue']];
+  arr.forEach(a=> itemRows.push([a.name, a.qty, Math.round(a.rev)]));
+  const ws1 = XLSX.utils.aoa_to_sheet(itemRows);
+  XLSX.utils.book_append_sheet(wb, ws1, 'Item-wise Report');
+
+  const billRows = [['Sr.No','Bill No','Date','Time','Table','Gross Amount','Taxable Amount','Discount','Round Off','User','Payment Mode']];
+  [...list].reverse().forEach((s,idx)=> billRows.push([
+    list.length-idx, s.id, new Date(s.date).toLocaleDateString('en-IN'), new Date(s.date).toLocaleTimeString('en-IN'),
+    s.tableName, Math.round(s.subtotal+(s.taxAmt||0)), Math.round(s.subtotal), Math.round(s.discount),
+    s.roundOff!==undefined ? s.roundOff.toFixed(2) : '0.00', s.staffName||'', s.payment
+  ]));
+  const ws2 = XLSX.utils.aoa_to_sheet(billRows);
+  XLSX.utils.book_append_sheet(wb, ws2, 'Bill-wise Report');
+
+  const gstRows = [['Bill No','Date','Customer GSTIN','Taxable Amount','Tax %','CGST','SGST','Total Tax','Bill Total']];
+  list.forEach(s=>{
+    const cgst = (s.taxAmt||0)/2, sgst=(s.taxAmt||0)/2;
+    gstRows.push([s.id, new Date(s.date).toLocaleDateString('en-IN'), s.customerGst||'', Math.round(s.subtotal), s.taxPct, Math.round(cgst), Math.round(sgst), Math.round(s.taxAmt||0), Math.round(s.grandTotal)]);
+  });
+  const ws3 = XLSX.utils.aoa_to_sheet(gstRows);
+  XLSX.utils.book_append_sheet(wb, ws3, 'GST Report');
+
+  const custAgg = {};
+  list.forEach(s=>{
+    const key = (s.customerPhone && s.customerPhone.trim()) || (s.customerName && s.customerName.trim()) || 'Walk-in / Unknown';
+    if(!custAgg[key]) custAgg[key] = {name:s.customerName||'-', phone:s.customerPhone||'-', gst:s.customerGst||'-', visits:0, total:0, lastVisit:s.date};
+    custAgg[key].visits += 1; custAgg[key].total += s.grandTotal;
+    if(new Date(s.date) > new Date(custAgg[key].lastVisit)) custAgg[key].lastVisit = s.date;
+  });
+  const custRows = [['Customer Name','Phone','GSTIN','Visits','Total Spend','Last Visit']];
+  Object.values(custAgg).sort((a,b)=>b.total-a.total).forEach(c=> custRows.push([c.name, c.phone, c.gst, c.visits, Math.round(c.total), new Date(c.lastVisit).toLocaleString('en-IN')]));
+  const ws4 = XLSX.utils.aoa_to_sheet(custRows);
+  XLSX.utils.book_append_sheet(wb, ws4, 'Customer Report');
+
+  const roomList = bookings.filter(b=> b.status==='closed' && b.checkoutDate && b.checkoutDate.slice(0,10)>=reportFrom && b.checkoutDate.slice(0,10)<=reportTo);
+  const roomRows = [['Sl.No','Room','Guest','Check-In','Check-Out','Nights','Room Charge','Services','Tax','Discount','Grand Total','User','Payment']];
+  [...roomList].reverse().forEach((b,idx)=> roomRows.push([
+    roomList.length-idx, b.roomNo, b.guestName, new Date(b.checkinDate).toLocaleDateString('en-IN'), new Date(b.checkoutDate).toLocaleDateString('en-IN'),
+    b.nights||0, Math.round(b.roomTotal||0), Math.round(b.servicesTotal||0), Math.round(b.taxAmt||0), Math.round(b.discount||0), Math.round(b.grandTotal||0), b.checkedOutBy||'', b.payment||''
+  ]));
+  const ws5 = XLSX.utils.aoa_to_sheet(roomRows);
+  XLSX.utils.book_append_sheet(wb, ws5, 'Room Report');
+
+  XLSX.writeFile(wb, `sale-report-${reportFrom}-to-${reportTo}.xlsx`);
+}
+function printReportPDF(){
+  const list = window._currentReportBills || [];
+  const arr = window._currentReportAgg || [];
+  const style = `
+      body{font-family:Arial,Helvetica,sans-serif;padding:24px;color:#111;}
+      h1{font-size:18px;margin:0;}
+      .sub{color:#555;font-size:12px;margin-bottom:14px;}
+      table{width:100%;border-collapse:collapse;margin-bottom:22px;}
+      th,td{border:1px solid #ccc;padding:6px 8px;font-size:11px;}
+      th{background:#f2f2f2;text-align:left;}
+      h3{font-size:14px;border-bottom:2px solid #333;padding-bottom:4px;}
+      .summary{display:flex;gap:24px;margin-bottom:18px;flex-wrap:wrap;}
+      .summary div{font-size:13px;}
+      .summary b{display:block;font-size:16px;}
+    `;
+  const headerHtml = `
+      <h1>${settings.hotelName||'Hotel'}</h1>
+      <div class="sub">${settings.gstNo?('GSTIN: '+settings.gstNo+' | '):''}${settings.address||''} ${settings.phone?(' | Ph: '+settings.phone):''}</div>
+      <div class="sub">Report Range: ${reportFrom} se ${reportTo}</div>
+    `;
+  let title = 'Sale Report', bodyTables = '';
+
+  if(reportTab==='item'){
+    title = 'Item-wise Sale Report';
+    const revenue = arr.reduce((s,a)=>s+a.rev,0);
+    const itemRows = arr.map((a,i)=>`<tr><td>${i+1}</td><td>${a.name}</td><td style="text-align:right">${a.qty}</td><td style="text-align:right">${Math.round(a.rev)}</td></tr>`).join('');
+    bodyTables = `<div class="summary"><div>Total Revenue<b>Rs ${Math.round(revenue)}</b></div><div>Total Items Sold<b>${arr.length}</b></div></div>
+      <h3>Item-wise Sale</h3>
+      <table><thead><tr><th>#</th><th>Item</th><th>Qty Sold</th><th>Revenue (Rs)</th></tr></thead><tbody>${itemRows||'<tr><td colspan=4>Koi data nahi</td></tr>'}</tbody></table>`;
+  } else if(reportTab==='bill'){
+    title = 'Bill-wise Report';
+    const revenue = list.reduce((s,x)=>s+x.grandTotal,0);
+    const billRows = [...list].reverse().map((s,idx)=>`<tr><td>${list.length-idx}</td><td>${s.id}</td><td>${new Date(s.date).toLocaleDateString('en-IN')}</td><td>${new Date(s.date).toLocaleTimeString('en-IN')}</td><td>${s.tableName}</td><td style="text-align:right">${Math.round(s.subtotal+(s.taxAmt||0))}</td><td style="text-align:right">${Math.round(s.subtotal)}</td><td style="text-align:right">${Math.round(s.discount)}</td><td style="text-align:right">${s.roundOff!==undefined?s.roundOff.toFixed(2):'0.00'}</td><td>${s.staffName||'-'}</td><td>${s.payment}</td></tr>`).join('');
+    bodyTables = `<div class="summary"><div>Total Revenue<b>Rs ${Math.round(revenue)}</b></div><div>Total Bills<b>${list.length}</b></div></div>
+      <h3>Bill-wise Report</h3>
+      <table><thead><tr><th>Sr</th><th>Bill#</th><th>Date</th><th>Time</th><th>Table</th><th>Gross</th><th>Taxable</th><th>Discount</th><th>Round Off</th><th>User</th><th>Payment</th></tr></thead><tbody>${billRows||'<tr><td colspan=11>Koi bill nahi</td></tr>'}</tbody></table>`;
+  } else if(reportTab==='gst'){
+    title = 'GST Report';
+    const gstRows = list.map(s=>{
+      const cgst=(s.taxAmt||0)/2, sgst=(s.taxAmt||0)/2;
+      return {id:s.id, date:s.date, taxable:s.subtotal, taxPct:s.taxPct, cgst, sgst, totalTax:s.taxAmt||0, grand:s.grandTotal, custGst:s.customerGst||'-'};
+    });
+    const totTaxable=gstRows.reduce((a,r)=>a+r.taxable,0), totCgst=gstRows.reduce((a,r)=>a+r.cgst,0), totSgst=gstRows.reduce((a,r)=>a+r.sgst,0), totTax=gstRows.reduce((a,r)=>a+r.totalTax,0);
+    bodyTables = `<div class="summary"><div>Total Taxable Amount<b>Rs ${Math.round(totTaxable)}</b></div><div>Total Tax Collected<b>Rs ${Math.round(totTax)}</b></div></div>
+      <h3>GST Report (CGST + SGST)</h3>
+      <table><thead><tr><th>Bill#</th><th>Date</th><th>Cust. GSTIN</th><th>Taxable</th><th>Tax %</th><th>CGST</th><th>SGST</th><th>Total Tax</th><th>Bill Total</th></tr></thead>
+      <tbody>${gstRows.map(r=>`<tr><td>${r.id}</td><td>${new Date(r.date).toLocaleDateString('en-IN')}</td><td>${r.custGst}</td><td style="text-align:right">${Math.round(r.taxable)}</td><td>${r.taxPct}%</td><td style="text-align:right">${Math.round(r.cgst)}</td><td style="text-align:right">${Math.round(r.sgst)}</td><td style="text-align:right">${Math.round(r.totalTax)}</td><td style="text-align:right">${Math.round(r.grand)}</td></tr>`).join('')||'<tr><td colspan=9>Koi bill nahi</td></tr>'}</tbody>
+      <tfoot><tr style="font-weight:700;"><td colspan="3">Total</td><td style="text-align:right">${Math.round(totTaxable)}</td><td></td><td style="text-align:right">${Math.round(totCgst)}</td><td style="text-align:right">${Math.round(totSgst)}</td><td style="text-align:right">${Math.round(totTax)}</td><td></td></tr></tfoot></table>`;
+  } else if(reportTab==='customer'){
+    title = 'Customer Report';
+    const custAgg = {};
+    list.forEach(s=>{
+      const key = (s.customerPhone && s.customerPhone.trim()) || (s.customerName && s.customerName.trim()) || 'Walk-in / Unknown';
+      if(!custAgg[key]) custAgg[key] = {name:s.customerName||'-', phone:s.customerPhone||'-', gst:s.customerGst||'-', visits:0, total:0, lastVisit:s.date};
+      custAgg[key].visits += 1; custAgg[key].total += s.grandTotal;
+      if(new Date(s.date) > new Date(custAgg[key].lastVisit)) custAgg[key].lastVisit = s.date;
+    });
+    const custArr = Object.values(custAgg).sort((a,b)=>b.total-a.total);
+    bodyTables = `<div class="summary"><div>Total Customers<b>${custArr.length}</b></div></div>
+      <h3>Customer Report</h3>
+      <table><thead><tr><th>Customer</th><th>Phone</th><th>GSTIN</th><th>Visits</th><th>Total Spend</th><th>Last Visit</th></tr></thead>
+      <tbody>${custArr.map(c=>`<tr><td>${c.name}</td><td>${c.phone}</td><td>${c.gst}</td><td style="text-align:right">${c.visits}</td><td style="text-align:right">${Math.round(c.total)}</td><td>${new Date(c.lastVisit).toLocaleString('en-IN')}</td></tr>`).join('')||'<tr><td colspan=6>Koi data nahi</td></tr>'}</tbody></table>`;
+  } else if(reportTab==='room'){
+    title = 'Room / Front Office Report';
+    const roomList = bookings.filter(b=> b.status==='closed' && b.checkoutDate && b.checkoutDate.slice(0,10)>=reportFrom && b.checkoutDate.slice(0,10)<=reportTo);
+    const roomRevenue = roomList.reduce((s,b)=>s+(b.grandTotal||0),0);
+    bodyTables = `<div class="summary"><div>Total Revenue (Rooms)<b>Rs ${Math.round(roomRevenue)}</b></div><div>Total Check-Outs<b>${roomList.length}</b></div></div>
+      <h3>Room / Front Office Report</h3>
+      <table><thead><tr><th>Sr</th><th>Room</th><th>Guest</th><th>Check-In</th><th>Check-Out</th><th>Nights</th><th>Room Charge</th><th>Services</th><th>Tax</th><th>Discount</th><th>Grand Total</th><th>User</th><th>Payment</th></tr></thead>
+      <tbody>${[...roomList].reverse().map((b,idx)=>`<tr><td>${roomList.length-idx}</td><td>${b.roomNo}</td><td>${b.guestName}</td><td>${new Date(b.checkinDate).toLocaleDateString('en-IN')}</td><td>${new Date(b.checkoutDate).toLocaleDateString('en-IN')}</td><td style="text-align:right">${b.nights||0}</td><td style="text-align:right">${Math.round(b.roomTotal||0)}</td><td style="text-align:right">${Math.round(b.servicesTotal||0)}</td><td style="text-align:right">${Math.round(b.taxAmt||0)}</td><td style="text-align:right">${Math.round(b.discount||0)}</td><td style="text-align:right">${Math.round(b.grandTotal||0)}</td><td>${b.checkedOutBy||'-'}</td><td>${b.payment||'-'}</td></tr>`).join('') || '<tr><td colspan=13>Koi room bill nahi</td></tr>'}</tbody></table>`;
+  }
+
+  printDocument(title+' '+reportFrom+' to '+reportTo, style, headerHtml + bodyTables);
+}
+
+/* ---------------- INIT ---------------- */
+(async function init(){
+  document.getElementById('orderOverlay').addEventListener('click', (e)=>{
+    if(e.target.id==='orderOverlay') closeOrderModal();
+  });
+
+  let savedClientId = null, savedClientKey = null;
+  try{
+    savedClientId = localStorage.getItem('hms_client_id');
+    savedClientKey = localStorage.getItem('hms_client_key');
+  }catch(e){}
+
+  if(savedClientId && savedClientKey){
+    clientId = savedClientId; clientKey = savedClientKey;
+    await continueBoot();
+  } else {
+    renderClientGate('choose');
+  }
+})();
+</script>
+</body>
+</html>
