@@ -3008,6 +3008,27 @@ function printReportPDF(){
   }
 })();
 </script>
-</body>
+<script type="module">
+  // Import the functions you need from the SDKs you need
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.0/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.17.0/firebase-analytics.js";
+  // TODO: Add SDKs for Firebase products that you want to use
+  // https://firebase.google.com/docs/web/setup#available-libraries
+
+  // Your web app's Firebase configuration
+  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+  const firebaseConfig = {
+    apiKey: "AIzaSyBXHpIgiJ3cMkrWRdWG6DmIVWX3vZNkRJQ",
+    authDomain: "bokaro-desk.firebaseapp.com",
+    projectId: "bokaro-desk",
+    storageBucket: "bokaro-desk.firebasestorage.app",
+    messagingSenderId: "885046809605",
+    appId: "1:885046809605:web:c467bb71fa18ddd1d0386c",
+    measurementId: "G-RYY82QWW0M"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(app);
+</script>
 </html>
-sk
