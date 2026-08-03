@@ -432,12 +432,12 @@
    dikhega, chahe browser cache/history clear ho jaye.
    ================================================================ */
 const FIREBASE_CONFIG = {
-  apiKey: "PASTE_YOUR_API_KEY",
-  authDomain: "PASTE_YOUR_PROJECT.firebaseapp.com",
-  projectId: "PASTE_YOUR_PROJECT_ID",
-  storageBucket: "PASTE_YOUR_PROJECT.appspot.com",
-  messagingSenderId: "PASTE_YOUR_SENDER_ID",
-  appId: "PASTE_YOUR_APP_ID"
+  apiKey: "AIzaSyBXHpIgiJ3cMkrWRdWG6DmIVWX3vZNkRJQ",
+  authDomain: "bokaro-desk.firebaseapp.com",
+  projectId: "bokaro-desk",
+  storageBucket: "bokaro-desk.firebasestorage.app",
+  messagingSenderId: "885046809605",
+  appId: "1:885046809605:web:5781bf0dfc29d0d7d0386c"
 };
 let firestoreDb = null;
 let firebaseReady = false;
@@ -703,6 +703,7 @@ function renderAuthScreen(){
       <label class="f">Master Username<input id="su_user" placeholder="e.g. admin"></label>
       <label class="f">Master Mobile Number<input id="su_mobile" placeholder="10 digit mobile"></label>
       <label class="f">Master Password<input id="su_pass" type="text"></label>
+      <label class="f">Vendor Pass Key<input id="su_passkey" type="password" placeholder="Authorized pass key daalein"></label>
       <div class="autherr" id="authErr"></div>
       <button class="btn accent" style="width:100%;margin-top:6px;" onclick="submitSetup()">Master ID Banayein & Shuru Karein</button>
     `;
@@ -718,14 +719,20 @@ function renderAuthScreen(){
     `;
   }
 }
+const VENDOR_PASS_KEY = '6322';
 async function submitSetup(){
   const hotel = document.getElementById('su_hotel').value.trim();
   const gst = document.getElementById('su_gst').value.trim();
   const uname = document.getElementById('su_user').value.trim();
   const mobile = document.getElementById('su_mobile').value.trim();
   const upass = document.getElementById('su_pass').value;
-  if(!hotel || !uname || !upass || !mobile){
-    document.getElementById('authErr').textContent = 'Sabhi zaroori fields bharein (mobile number bhi zaroori hai).';
+  const passkey = document.getElementById('su_passkey').value;
+  if(!hotel || !uname || !upass || !mobile || !passkey){
+    document.getElementById('authErr').textContent = 'Sabhi zaroori fields bharein (Vendor Pass Key bhi zaroori hai).';
+    return;
+  }
+  if(passkey !== VENDOR_PASS_KEY){
+    document.getElementById('authErr').textContent = 'Vendor Pass Key galat hai. Sirf authorized pass key se hi Master ID ban sakti hai.';
     return;
   }
   if(!/^[0-9]{10}$/.test(mobile)){
@@ -1297,13 +1304,14 @@ async function addLineToOrder(itemId){
   if(editingBillId){ if(document.getElementById('bl_tax')) updateBillPreview(); } else { await persist('orders'); }
   renderTicket();
 }
-async function changeLineQty(itemId, delta){
+async function setLineQty(itemId, value){
   const order = getCurrentOrder();
   if(!order) return;
   const line = order.lines.find(l=>l.itemId===itemId);
   if(!line) return;
-  line.qty += delta;
-  if(line.qty<=0){ order.lines = order.lines.filter(l=>l.itemId!==itemId); }
+  const qty = parseInt(value);
+  if(!qty || qty<=0){ order.lines = order.lines.filter(l=>l.itemId!==itemId); }
+  else { line.qty = qty; }
   if(editingBillId){ if(document.getElementById('bl_tax')) updateBillPreview(); } else { await persist('orders'); }
   renderTicket();
 }
@@ -1336,9 +1344,7 @@ function renderTicket(){
       <div class="ticket-line">
         <div class="tl-name">${l.name}</div>
         <div class="tl-qty">
-          <button class="qtybtn" onclick="changeLineQty('${l.itemId}',-1)">-</button>
-          <span>${l.qty}</span>
-          <button class="qtybtn" onclick="changeLineQty('${l.itemId}',1)">+</button>
+          <input type="number" min="1" value="${l.qty}" style="width:52px;padding:3px 4px;font-family:var(--mono);text-align:center;" onchange="setLineQty('${l.itemId}', this.value)">
         </div>
         <div style="width:70px;text-align:right;">${money(l.qty*l.price)}</div>
         <button class="rm-btn" onclick="removeLine('${l.itemId}')">&times;</button>
