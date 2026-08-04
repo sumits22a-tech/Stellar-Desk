@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Super Admin Panel - Vendor Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<!-- Firebase (Firestore) - SAME project config as the Hotel & Restaurant Management System,
+     so this Super Admin panel reads/writes the exact same online data (client list,
+     live "last active" heartbeat, block/pause status, subscription plans). -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --bg:#FBF7EF; --paper:#FFFFFF; --ink:#16302B; --ink-soft:#4B615B;
+    --line:#E4DCC8; --line-soft:#EFE9D8; --accent:#E0932E; --accent-deep:#B5691A;
+    --accent-bg:#FBEBD3; --good:#2F7A4D; --good-bg:#E5F2E9; --bad:#B23B3B; --bad-bg:#FBE7E7;
+    --sidebar:#122A25; --sidebar-soft:#9FC4B9;
+    --mono:'JetBrains Mono',monospace; --display:'Fraunces',serif; --body:'Inter',sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{font-family:var(--body);background:var(--bg);color:var(--ink);min-height:100vh;}
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px;}
+
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:16px 28px;border-bottom:1px solid var(--line);background:var(--paper);position:sticky;top:0;z-index:10;}
+  .topbar .brand{font-family:var(--display);font-weight:700;font-size:19px;display:flex;align-items:center;gap:10px;}
+  .topbar .brand .tag{background:var(--sidebar);color:#fff;font-size:10.5px;padding:3px 9px;border-radius:20px;letter-spacing:.04em;font-family:var(--body);font-weight:600;}
+  .topbar .right{display:flex;align-items:center;gap:14px;}
+  .topbar .clock{font-family:var(--mono);font-size:12.5px;color:var(--ink-soft);}
+  .who{font-size:12.5px;color:var(--ink-soft);}
+  .who b{color:var(--ink);}
+
+  .content{max-width:1180px;margin:0 auto;padding:24px 24px 60px 24px;}
+
+  .cardrow{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:22px;}
+  .stat{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:16px 18px;min-width:160px;flex:1;}
+  .stat .label{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);font-weight:600;}
+  .stat .value{font-family:var(--display);font-size:26px;font-weight:600;margin-top:6px;}
+  .stat .sub{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+
+  h2.sectitle{font-family:var(--display);font-size:19px;font-weight:600;margin:0 0 14px 0;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+  h2.sectitle .live-dot{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--good);font-family:var(--body);}
+  h2.sectitle .live-dot .dot{width:8px;height:8px;border-radius:50%;background:var(--good);animation:pulse 1.6s infinite;}
+  @keyframes pulse{0%{opacity:1;}50%{opacity:.35;}100%{opacity:1;}}
+  .panel{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:20px;}
+
+  table.datatable{width:100%;border-collapse:collapse;font-size:13px;}
+  table.datatable th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);border-bottom:1px solid var(--line);padding:8px 9px;font-weight:600;white-space:nowrap;}
+  table.datatable td{padding:9px 9px;border-bottom:1px solid var(--line-soft);vertical-align:middle;}
+  table.datatable tr:last-child td{border-bottom:none;}
+  .num{font-family:var(--mono);text-align:right;}
+  .pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;}
+  .pill.good{background:var(--good-bg);color:var(--good);}
+  .pill.bad{background:var(--bad-bg);color:var(--bad);}
+  .pill.warn{background:var(--accent-bg);color:var(--accent-deep);}
+  .pill.muted{background:var(--line-soft);color:var(--ink-soft);}
+
+  button.btn{font-family:var(--body);font-weight:600;font-size:12.5px;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;background:var(--ink);color:#fff;}
+  button.btn:hover{background:#0d201c;}
+  button.btn.accent{background:var(--accent);color:#1c1206;}
+  button.btn.accent:hover{background:var(--accent-deep);color:#fff;}
+  button.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);}
+  button.btn.ghost:hover{background:var(--bg);}
+  button.btn.danger{background:var(--bad-bg);color:var(--bad);}
+  button.btn.play{background:var(--good-bg);color:var(--good);}
+  button.btn.small{padding:5px 10px;font-size:11.5px;border-radius:6px;}
+  button.btn:disabled{opacity:.5;cursor:not-allowed;}
+
+  input,select{font-family:var(--body);font-size:13.5px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--ink);}
+  input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px;}
+  label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-soft);font-weight:600;}
+
+  .formgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;align-items:end;}
+  .searchbar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;}
+  .searchbar input{flex:1;min-width:180px;}
+
+  .authbg{position:fixed;inset:0;background:var(--sidebar);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;}
+  .authbg.hidden{display:none;}
+  .authcard{background:var(--paper);border-radius:16px;padding:32px 30px;max-width:400px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.4);}
+  .authcard .kicker{display:inline-block;background:var(--accent-bg);color:var(--accent-deep);font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:20px;margin-bottom:10px;}
+  .authcard h2{font-family:var(--display);margin:0 0 4px 0;font-size:22px;}
+  .authcard p.sub{color:var(--ink-soft);font-size:13px;margin:0 0 18px 0;line-height:1.5;}
+  .authcard label.f{margin-bottom:10px;}
+  .authcard input{width:100%;}
+  .autherr{color:var(--bad);font-size:12.5px;margin-top:4px;min-height:16px;}
+  .authnote{font-size:11.5px;color:var(--ink-soft);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-top:12px;line-height:1.5;}
+
+  .empty-hint{color:var(--ink-soft);font-size:13px;text-align:center;padding:30px 10px;}
+  .detail-row td{background:var(--bg);}
+  .detail-box{padding:10px 4px;}
+  .detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;font-size:12.5px;margin-bottom:12px;}
+  .detail-grid div span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);}
+  .toggle-link{background:none;border:none;color:var(--accent-deep);font-size:12px;font-weight:600;cursor:pointer;padding:0;text-decoration:underline;}
+
+  @media (max-width:640px){
+    .topbar{padding:12px 16px;}
+    .content{padding:16px 14px 50px 14px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="authbg" id="authOverlay">
+  <div class="authcard">
+    <span class="kicker" id="authKicker">Super Admin</span>
+    <h2 id="authTitle">Loading...</h2>
+    <p class="sub" id="authSub"></p>
+    <div id="authBody"></div>
+  </div>
+</div>
+
+<div id="dashboardRoot" style="display:none;">
+  <div class="topbar">
+    <div class="brand">Super Admin Panel <span class="tag">Vendor Control</span></div>
+    <div class="right">
+      <span class="clock" id="clock"></span>
+      <span class="who">Logged in as <b id="whoName">-</b></span>
+      <button class="btn ghost small" onclick="doLogout()">Logout</button>
+    </div>
+  </div>
+  <div class="content">
+
+    <div class="cardrow" id="statsRow"></div>
+
+    <div class="panel">
+      <h2 class="sectitle">Naya Restaurant (Client) Register Karein</h2>
+      <div class="formgrid">
+        <label class="f">Client ID<input id="ga_id" placeholder="e.g. sharma-hotel-jaipur"></label>
+        <label class="f">Password Key (client isse login karega)<input id="ga_key" type="text"></label>
+        <label class="f">Subscription Plan<select id="ga_plan">
+          <option>Trial</option><option>Monthly</option><option>Quarterly</option><option>Half-Yearly</option><option>Yearly</option>
+        </select></label>
+        <button class="btn accent" onclick="adminGenerateClient()">+ Client Register Karein</button>
+      </div>
+      <div class="autherr" id="genErr"></div>
+    </div>
+
+    <div class="panel">
+      <h2 class="sectitle">Sabhi Restaurants - Live Status &amp; Control
+        <span class="live-dot"><span class="dot"></span> Live tracking (auto-refresh)</span>
+      </h2>
+      <div class="searchbar">
+        <input id="clientSearch" placeholder="Client ID ya Hotel naam se khojein..." oninput="renderClientsTable()">
+        <select id="statusFilter" onchange="renderClientsTable()">
+          <option value="all">Sabhi</option>
+          <option value="online">Sirf Online</option>
+          <option value="offline">Sirf Offline</option>
+          <option value="paused">Sirf Paused</option>
+          <option value="expiring">7 Din Mein Expire</option>
+        </select>
+        <button class="btn ghost small" onclick="refreshDashboard()">Abhi Refresh Karein</button>
+      </div>
+      <table class="datatable">
+        <thead><tr>
+          <th>Client ID</th><th>Hotel Naam</th><th>Live Status</th><th>Access</th><th>Plan</th><th>Plan End</th><th style="width:230px;">Control</th>
+        </tr></thead>
+        <tbody id="clientsTbody"></tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ================= FIREBASE CONFIG =================
+   Same project as the Hotel & Restaurant Management System, so this panel
+   reads/writes the exact same client_index / client meta / heartbeat data.
+   ==================================================== */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBXHpIgiJ3cMkrWRdWG6DmIVWX3vZNkRJQ",
+  authDomain: "bokaro-desk.firebaseapp.com",
+  projectId: "bokaro-desk",
+  storageBucket: "bokaro-desk.firebasestorage.app",
+  messagingSenderId: "885046809605",
+  appId: "1:885046809605:web:5781bf0dfc29d0d7d0386c"
+};
+const FIRESTORE_COLLECTION = 'hotel_data';
+const SUPERADMIN_RECOVERY_PASSKEY = '632200'; // hidden passkey to reset Super Admin ID/password
+const ONLINE_WINDOW_MS = 3*60000; // matches the 60s heartbeat sent by the hotel app
+
+let firestoreDb = null, firebaseReady = false;
+try{
+  if(FIREBASE_CONFIG.apiKey && typeof firebase !== 'undefined'){
+    firebase.initializeApp(FIREBASE_CONFIG);
+    firestoreDb = firebase.firestore();
+    firebaseReady = true;
+  }
+}catch(e){ console.error('Firebase init failed, falling back to localStorage', e); firebaseReady = false; }
+
+/* ---------------- STORAGE HELPERS (same shape as the main HMS app) ---------------- */
+async function superAdminMetaGet(){
+  if(firebaseReady){
+    try{ const doc = await firestoreDb.collection(FIRESTORE_COLLECTION).doc('__superadmin__').get(); return doc.exists ? doc.data() : null; }
+    catch(e){ console.error(e); return null; }
+  }
+  try{ const raw = localStorage.getItem('hms_superadmin'); return raw ? JSON.parse(raw) : null; }catch(e){ return null; }
+}
+async function superAdminMetaSet(data){
+  if(firebaseReady){ await firestoreDb.collection(FIRESTORE_COLLECTION).doc('__superadmin__').set(data, {merge:true}); }
+  else { try{ const existing = JSON.parse(localStorage.getItem('hms_superadmin')||'{}'); localStorage.setItem('hms_superadmin', JSON.stringify({...existing, ...data})); }catch(e){} }
+}
+async function indexGet(){
+  if(firebaseReady){
+    try{ const doc = await firestoreDb.collection(FIRESTORE_COLLECTION).doc('__client_index__').get(); return doc.exists ? (doc.data().clients||[]) : []; }
+    catch(e){ return []; }
+  }
+  try{ const raw = localStorage.getItem('hms_client_index'); return raw ? JSON.parse(raw) : []; }catch(e){ return []; }
+}
+async function indexSet(list){
+  if(firebaseReady){ await firestoreDb.collection(FIRESTORE_COLLECTION).doc('__client_index__').set({clients:list}); }
+  else { try{ localStorage.setItem('hms_client_index', JSON.stringify(list)); }catch(e){} }
+}
+async function clientMetaGet(cid){
+  if(firebaseReady){
+    try{ const doc = await firestoreDb.collection(FIRESTORE_COLLECTION).doc(cid+'__meta').get(); return doc.exists ? doc.data() : null; }
+    catch(e){ console.error(e); return null; }
+  }
+  try{ const raw = localStorage.getItem('hms_client_meta_'+cid); return raw ? JSON.parse(raw) : null; }catch(e){ return null; }
+}
+async function clientMetaSet(cid, data){
+  if(firebaseReady){ await firestoreDb.collection(FIRESTORE_COLLECTION).doc(cid+'__meta').set(data, {merge:true}); }
+  else { try{ const existing = JSON.parse(localStorage.getItem('hms_client_meta_'+cid)||'{}'); localStorage.setItem('hms_client_meta_'+cid, JSON.stringify({...existing, ...data})); }catch(e){} }
+}
+function sanitizeClientId(raw){ return (raw||'').trim().toLowerCase().replace(/[^a-z0-9\-_]/g,'-').replace(/-+/g,'-'); }
+function planDaysFor(planName){ const map = {'Trial':14,'Monthly':30,'Quarterly':90,'Half-Yearly':182,'Yearly':365}; return map[planName]||30; }
+
+/* ---------------- AUTH STATE ---------------- */
+let superAdmin = null;
+let currentRows = [];
+let liveTimer = null;
+
+function tickClock(){
+  const d = new Date();
+  const el = document.getElementById('clock');
+  if(el) el.textContent = d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) + '  ' + d.toLocaleTimeString('en-IN');
+}
+setInterval(tickClock, 1000);
+
+async function boot(){
+  const existing = await superAdminMetaGet();
+  let sessionUser = null;
+  try{ sessionUser = localStorage.getItem('sa_session_user'); }catch(e){}
+  if(existing && sessionUser && existing.username === sessionUser){
+    superAdmin = {username: existing.username};
+    enterDashboard();
+  } else {
+    renderAuth(existing ? 'login' : 'setup');
+  }
+}
+
+/* ---------------- AUTH SCREENS ---------------- */
+function renderAuth(mode){
+  document.getElementById('authOverlay').classList.remove('hidden');
+  document.getElementById('dashboardRoot').style.display = 'none';
+
+  if(mode === 'setup'){
+    document.getElementById('authTitle').textContent = 'Super Admin Setup';
+    document.getElementById('authSub').textContent = 'Ye ek hi baar hoga - apna Super Admin ID aur Password banayein. Ye ID/password is poore Super Admin Panel ko control karega.';
+    document.getElementById('authBody').innerHTML = `
+      <label class="f">Super Admin ID (username)<input id="su_user" autocomplete="off"></label>
+      <label class="f">Password<input id="su_pass" type="password" autocomplete="new-password"></label>
+      <label class="f">Password Confirm Karein<input id="su_pass2" type="password" autocomplete="new-password"></label>
+      <div class="autherr" id="authErr"></div>
+      <button class="btn accent" style="width:100%;margin-top:6px;" onclick="submitSetup()">Super Admin Account Banayein</button>
+      <div class="authnote">Note: ID/Password bhool jaane par recovery ke liye ek fixed Passkey use hoti hai. Ye passkey hidden rehti hai aur sirf authorized vendor ko pata honi chahiye.</div>
+    `;
+  } else if(mode === 'login'){
+    document.getElementById('authTitle').textContent = 'Super Admin Login';
+    document.getElementById('authSub').textContent = 'Apna ID aur Password daalein.';
+    document.getElementById('authBody').innerHTML = `
+      <label class="f">Super Admin ID<input id="li_user" autocomplete="username"></label>
+      <label class="f">Password<input id="li_pass" type="password" autocomplete="current-password"></label>
+      <div class="autherr" id="authErr"></div>
+      <button class="btn accent" style="width:100%;margin-top:6px;" onclick="submitLogin()">Login Karein</button>
+      <button class="btn ghost" style="width:100%;margin-top:8px;" onclick="renderAuth('forgot')">ID / Password Bhool Gaye? (Passkey Se Reset Karein)</button>
+    `;
+  } else if(mode === 'forgot'){
+    document.getElementById('authTitle').textContent = 'Passkey Se Reset Karein';
+    document.getElementById('authSub').textContent = 'Authorized Passkey daalein, phir naya ID aur Password set karein.';
+    document.getElementById('authBody').innerHTML = `
+      <label class="f">Passkey<input id="fp_passkey" type="password" autocomplete="off" placeholder="Passkey daalein"></label>
+      <label class="f">Naya Super Admin ID<input id="fp_user" autocomplete="off"></label>
+      <label class="f">Naya Password<input id="fp_pass" type="password" autocomplete="new-password"></label>
+      <div class="autherr" id="authErr"></div>
+      <button class="btn accent" style="width:100%;margin-top:6px;" onclick="submitForgotReset()">Reset Karein</button>
+      <button class="btn ghost" style="width:100%;margin-top:8px;" onclick="renderAuth('login')">Wapas Login Par Jayein</button>
+    `;
+  }
+}
+
+async function submitSetup(){
+  const uname = document.getElementById('su_user').value.trim();
+  const pass = document.getElementById('su_pass').value;
+  const pass2 = document.getElementById('su_pass2').value;
+  const err = document.getElementById('authErr');
+  if(!uname || !pass){ err.textContent = 'ID aur Password dono bharein.'; return; }
+  if(pass !== pass2){ err.textContent = 'Dono password match nahi kar rahe.'; return; }
+  await superAdminMetaSet({username:uname, password:pass, createdAt:new Date().toISOString()});
+  try{ localStorage.setItem('sa_session_user', uname); }catch(e){}
+  superAdmin = {username:uname};
+  enterDashboard();
+}
+async function submitLogin(){
+  const uname = document.getElementById('li_user').value.trim();
+  const pass = document.getElementById('li_pass').value;
+  const err = document.getElementById('authErr');
+  const existing = await superAdminMetaGet();
+  if(!existing || existing.username !== uname || existing.password !== pass){
+    err.textContent = 'ID ya Password galat hai.';
+    return;
+  }
+  try{ localStorage.setItem('sa_session_user', uname); }catch(e){}
+  superAdmin = {username:uname};
+  enterDashboard();
+}
+async function submitForgotReset(){
+  const passkey = document.getElementById('fp_passkey').value.trim();
+  const newUser = document.getElementById('fp_user').value.trim();
+  const newPass = document.getElementById('fp_pass').value;
+  const err = document.getElementById('authErr');
+  if(passkey !== SUPERADMIN_RECOVERY_PASSKEY){
+    err.textContent = 'Passkey galat hai.';
+    return;
+  }
+  if(!newUser || !newPass){
+    err.textContent = 'Naya ID aur Password dono bharein.';
+    return;
+  }
+  await superAdminMetaSet({username:newUser, password:newPass, resetAt:new Date().toISOString()});
+  try{ localStorage.setItem('sa_session_user', newUser); }catch(e){}
+  superAdmin = {username:newUser};
+  enterDashboard();
+}
+function doLogout(){
+  try{ localStorage.removeItem('sa_session_user'); }catch(e){}
+  superAdmin = null;
+  if(liveTimer) clearInterval(liveTimer);
+  renderAuth('login');
+}
+
+/* ---------------- DASHBOARD ---------------- */
+function enterDashboard(){
+  document.getElementById('authOverlay').classList.add('hidden');
+  document.getElementById('dashboardRoot').style.display = 'block';
+  document.getElementById('whoName').textContent = superAdmin.username;
+  refreshDashboard();
+  if(liveTimer) clearInterval(liveTimer);
+  liveTimer = setInterval(refreshDashboard, 15000); // live status auto-refresh every 15s
+}
+
+async function refreshDashboard(){
+  const index = await indexGet();
+  const rows = [];
+  for(const entry of index){
+    const meta = await clientMetaGet(entry.id);
+    rows.push({id: entry.id, meta: meta || {}});
+  }
+  currentRows = rows;
+  renderStats();
+  renderClientsTable();
+}
+
+function isOnline(meta){
+  return !!(meta.lastActiveAt && (Date.now() - new Date(meta.lastActiveAt).getTime()) < ONLINE_WINDOW_MS);
+}
+function isExpired(meta){
+  return !!(meta.subscriptionEnd && new Date(meta.subscriptionEnd).getTime() < Date.now());
+}
+function isExpiringSoon(meta){
+  if(!meta.subscriptionEnd) return false;
+  const diff = new Date(meta.subscriptionEnd).getTime() - Date.now();
+  return diff > 0 && diff < 7*24*60*60*1000;
+}
+
+function renderStats(){
+  const rows = currentRows;
+  const online = rows.filter(r=>isOnline(r.meta)).length;
+  const paused = rows.filter(r=>r.meta.blocked).length;
+  const expiring = rows.filter(r=>isExpiringSoon(r.meta)).length;
+  const expired = rows.filter(r=>isExpired(r.meta) && !r.meta.blocked).length;
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat"><div class="label">Total Restaurants</div><div class="value">${rows.length}</div></div>
+    <div class="stat"><div class="label">Abhi Online (Live)</div><div class="value">${online}</div></div>
+    <div class="stat"><div class="label">Paused</div><div class="value">${paused}</div></div>
+    <div class="stat"><div class="label">7 Din Mein Expire</div><div class="value">${expiring}</div></div>
+    <div class="stat"><div class="label">Plan Expired</div><div class="value">${expired}</div></div>
+  `;
+}
+
+function renderClientsTable(){
+  const q = (document.getElementById('clientSearch')?.value || '').toLowerCase();
+  const filter = document.getElementById('statusFilter')?.value || 'all';
+  const tbody = document.getElementById('clientsTbody');
+  const now = Date.now();
+
+  let rows = currentRows.filter(r=>{
+    const hay = (r.id + ' ' + (r.meta.hotelName||'')).toLowerCase();
+    if(q && !hay.includes(q)) return false;
+    if(filter==='online' && !isOnline(r.meta)) return false;
+    if(filter==='offline' && isOnline(r.meta)) return false;
+    if(filter==='paused' && !r.meta.blocked) return false;
+    if(filter==='expiring' && !isExpiringSoon(r.meta)) return false;
+    return true;
+  });
+
+  if(rows.length===0){
+    tbody.innerHTML = `<tr><td colspan="7" class="empty-hint">Koi restaurant nahi mila. Upar se naya register karein ya search/filter badlein.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(r=>{
+    const m = r.meta;
+    const online = isOnline(m);
+    const expired = isExpired(m);
+    const paused = !!m.blocked;
+    const rowId = 'row_'+r.id.replace(/[^a-zA-Z0-9]/g,'_');
+    return `<tr>
+      <td><b>${r.id}</b></td>
+      <td>${m.hotelName || '-'}</td>
+      <td>
+        ${online ? '<span class="pill good">&#9679; Online</span>' : '<span class="pill bad">&#9679; Offline</span>'}
+        <div style="font-size:10.5px;color:var(--ink-soft);margin-top:3px;">${m.lastActiveAt ? 'Last seen: '+new Date(m.lastActiveAt).toLocaleString('en-IN') : 'Kabhi login nahi hua'}</div>
+      </td>
+      <td>
+        ${paused ? '<span class="pill bad">Paused</span>' : (expired ? '<span class="pill warn">Expired</span>' : '<span class="pill good">Active</span>')}
+      </td>
+      <td>${m.subscriptionPlan || '-'}</td>
+      <td>${m.subscriptionEnd ? new Date(m.subscriptionEnd).toLocaleDateString('en-IN') : '-'}${isExpiringSoon(m) ? ' <span class="pill warn">Jald Expire</span>' : ''}</td>
+      <td>
+        <button class="btn ${paused?'play':'danger'} small" onclick="adminTogglePause('${r.id}', ${!paused})">${paused ? '&#9654; Play (Resume)' : '&#10074;&#10074; Pause'}</button>
+        <button class="btn ghost small" onclick="toggleDetailRow('${rowId}','${r.id}')">Details / Plan</button>
+      </td>
+    </tr>
+    <tr class="detail-row" id="${rowId}" style="display:none;"><td colspan="7"><div class="detail-box" id="detailBox_${rowId}"></div></td></tr>`;
+  }).join('');
+}
+
+function toggleDetailRow(rowId, cid){
+  const row = document.getElementById(rowId);
+  if(!row) return;
+  if(row.style.display === 'table-row'){ row.style.display = 'none'; return; }
+  document.querySelectorAll('.detail-row').forEach(el=>el.style.display='none');
+  row.style.display = 'table-row';
+  const meta = (currentRows.find(r=>r.id===cid) || {}).meta || {};
+  const box = document.getElementById('detailBox_'+rowId);
+  box.innerHTML = `
+    <div class="detail-grid">
+      <div><span>Registered</span>${meta.createdAt ? new Date(meta.createdAt).toLocaleString('en-IN') : '-'}</div>
+      <div><span>Last Login</span>${meta.lastLoginAt ? new Date(meta.lastLoginAt).toLocaleString('en-IN') : '-'}</div>
+      <div><span>Last Login User</span>${meta.lastLoginUser || '-'}</div>
+      <div><span>Last Logout</span>${meta.lastLogoutAt ? new Date(meta.lastLogoutAt).toLocaleString('en-IN') : '-'}</div>
+      <div><span>Plan Start</span>${meta.subscriptionStart ? new Date(meta.subscriptionStart).toLocaleDateString('en-IN') : '-'}</div>
+      <div><span>Password Key</span>${meta.passwordKey || '-'}</div>
+    </div>
+    <div class="formgrid">
+      <label class="f">Naya Plan Assign Karein<select id="pd_plan_${rowId}">
+        <option>Trial</option><option>Monthly</option><option>Quarterly</option><option>Half-Yearly</option><option>Yearly</option>
+      </select></label>
+      <button class="btn accent small" onclick="adminAssignPlan('${cid}','${rowId}')">Plan Confirm Karein (aaj se shuru)</button>
+    </div>
+  `;
+}
+
+async function adminGenerateClient(){
+  const id = sanitizeClientId(document.getElementById('ga_id').value);
+  const key = document.getElementById('ga_key').value.trim();
+  const plan = document.getElementById('ga_plan').value;
+  const err = document.getElementById('genErr');
+  err.textContent = '';
+  if(!id || !key){ err.textContent = 'Client ID aur Password Key dono bharein.'; return; }
+  const existing = await clientMetaGet(id);
+  if(existing){ err.textContent = 'Ye Client ID pehle se registered hai.'; return; }
+  const now = new Date();
+  const end = new Date(now.getTime() + planDaysFor(plan)*24*60*60*1000);
+  await clientMetaSet(id, {
+    passwordKey:key, createdAt:now.toISOString(), blocked:false,
+    subscriptionPlan:plan, subscriptionStart:now.toISOString(), subscriptionEnd:end.toISOString(), hotelName:''
+  });
+  const list = await indexGet();
+  if(!list.some(c=>c.id===id)){ list.push({id, createdAt:now.toISOString()}); await indexSet(list); }
+  document.getElementById('ga_id').value=''; document.getElementById('ga_key').value='';
+  await refreshDashboard();
+}
+
+async function adminTogglePause(cid, newPausedState){
+  await clientMetaSet(cid, {blocked:newPausedState});
+  await refreshDashboard();
+}
+
+async function adminAssignPlan(cid, rowId){
+  const sel = document.getElementById('pd_plan_'+rowId);
+  const plan = sel.value;
+  const now = new Date();
+  const end = new Date(now.getTime() + planDaysFor(plan)*24*60*60*1000);
+  await clientMetaSet(cid, {subscriptionPlan:plan, subscriptionStart:now.toISOString(), subscriptionEnd:end.toISOString()});
+  await refreshDashboard();
+}
+
+/* ---------------- INIT ---------------- */
+boot();
+</script>
+</body>
+</html>
