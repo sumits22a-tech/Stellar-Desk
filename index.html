@@ -421,6 +421,16 @@
   </div>
 </div>
 
+<div class="authbg hidden" id="superAdminOverlay" style="align-items:flex-start;overflow-y:auto;padding:24px;">
+  <div style="background:var(--bg);border-radius:16px;max-width:1100px;width:100%;margin:0 auto;padding:24px 26px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+      <h2 style="font-family:var(--display);margin:0;font-size:22px;">Super Admin Panel</h2>
+      <button class="btn ghost small" onclick="superAdminLogout()">Logout</button>
+    </div>
+    <div id="superAdminBody"></div>
+  </div>
+</div>
+
 <script>
 /* ================================================================
    FIREBASE CONFIG - PASTE YOUR OWN PROJECT CONFIG HERE
@@ -442,6 +452,7 @@ const FIREBASE_CONFIG = {
 let firestoreDb = null;
 let firebaseReady = false;
 let clientId = '', clientKey = '';
+let superAdmin = null;
 try{
   const cfgLooksReal = FIREBASE_CONFIG.apiKey && !FIREBASE_CONFIG.apiKey.startsWith('PASTE_') && typeof firebase !== 'undefined';
   if(cfgLooksReal){
@@ -531,8 +542,10 @@ async function storeSet(key, value){
 }
 async function clientMetaGet(cid){
   if(firebaseReady){
-    const doc = await firestoreDb.collection(FIRESTORE_COLLECTION).doc(cid+'__meta').get();
-    return doc.exists ? doc.data() : null;
+    try{
+      const doc = await firestoreDb.collection(FIRESTORE_COLLECTION).doc(cid+'__meta').get();
+      return doc.exists ? doc.data() : null;
+    }catch(e){ console.error('clientMetaGet failed', e); return null; }
   }
   try{
     const raw = localStorage.getItem('hms_client_meta_'+cid);
@@ -541,9 +554,56 @@ async function clientMetaGet(cid){
 }
 async function clientMetaSet(cid, data){
   if(firebaseReady){
-    await firestoreDb.collection(FIRESTORE_COLLECTION).doc(cid+'__meta').set(data);
+    try{
+      await firestoreDb.collection(FIRESTORE_COLLECTION).doc(cid+'__meta').set(data, {merge:true});
+    }catch(e){ console.error('clientMetaSet failed', e); }
   } else {
-    try{ localStorage.setItem('hms_client_meta_'+cid, JSON.stringify(data)); }catch(e){}
+    try{
+      const existing = JSON.parse(localStorage.getItem('hms_client_meta_'+cid) || '{}');
+      localStorage.setItem('hms_client_meta_'+cid, JSON.stringify({...existing, ...data}));
+    }catch(e){}
+  }
+}
+async function indexGet(){
+  if(firebaseReady){
+    try{
+      const doc = await firestoreDb.collection(FIRESTORE_COLLECTION).doc('__client_index__').get();
+      return doc.exists ? (doc.data().clients || []) : [];
+    }catch(e){ return []; }
+  }
+  try{
+    const raw = localStorage.getItem('hms_client_index');
+    return raw ? JSON.parse(raw) : [];
+  }catch(e){ return []; }
+}
+async function indexSet(list){
+  if(firebaseReady){
+    await firestoreDb.collection(FIRESTORE_COLLECTION).doc('__client_index__').set({clients:list});
+  } else {
+    try{ localStorage.setItem('hms_client_index', JSON.stringify(list)); }catch(e){}
+  }
+}
+async function indexAdd(cid){
+  const list = await indexGet();
+  if(!list.some(c=>c.id===cid)){
+    list.push({id:cid, createdAt:new Date().toISOString()});
+    await indexSet(list);
+  }
+}
+async function superAdminMetaGet(){
+  if(firebaseReady){
+    try{
+      const doc = await firestoreDb.collection(FIRESTORE_COLLECTION).doc('__superadmin__').get();
+      return doc.exists ? doc.data() : null;
+    }catch(e){ return null; }
+  }
+  try{ const raw = localStorage.getItem('hms_superadmin'); return raw ? JSON.parse(raw) : null; }catch(e){ return null; }
+}
+async function superAdminMetaSet(data){
+  if(firebaseReady){
+    await firestoreDb.collection(FIRESTORE_COLLECTION).doc('__superadmin__').set(data, {merge:true});
+  } else {
+    try{ localStorage.setItem('hms_superadmin', JSON.stringify(data)); }catch(e){}
   }
 }
 
@@ -621,6 +681,7 @@ function renderClientGate(mode){
     document.getElementById('authBody').innerHTML = `
       <button class="btn accent" style="width:100%;margin-bottom:8px;" onclick="renderClientGate('register')">Naya Restaurant Register Karein</button>
       <button class="btn ghost" style="width:100%;" onclick="renderClientGate('login')">Pehle Se Bane Client ID Se Login Karein</button>
+      <div style="text-align:center;margin-top:16px;"><a href="#" style="font-size:11px;color:var(--ink-soft);" onclick="event.preventDefault();renderSuperAdminGate();">Vendor / Super Admin Panel</a></div>
     `;
   } else if(mode==='register'){
     document.getElementById('authTitle').textContent = 'Naya Restaurant Register Karein';
@@ -653,10 +714,23 @@ async function submitClientRegister(){
   if(!id || !key){ document.getElementById('authErr').textContent = 'Client ID aur Password Key dono bharein.'; return; }
   const existing = await clientMetaGet(id);
   if(existing){ document.getElementById('authErr').textContent = 'Ye Client ID pehle se registered hai. "Login" use karein ya alag ID chunein.'; return; }
-  await clientMetaSet(id, {passwordKey:key, createdAt:new Date().toISOString()});
+  const now = new Date();
+  const trialEnd = new Date(now.getTime() + 14*24*60*60*1000);
+  await clientMetaSet(id, {
+    passwordKey:key, createdAt:now.toISOString(), blocked:false,
+    subscriptionPlan:'Trial', subscriptionStart:now.toISOString(), subscriptionEnd:trialEnd.toISOString(),
+    hotelName:''
+  });
+  await indexAdd(id);
   clientId = id; clientKey = key;
   try{ localStorage.setItem('hms_client_id', id); localStorage.setItem('hms_client_key', key); }catch(e){}
   await continueBoot();
+}
+function clientAccessBlockedMessage(meta){
+  if(!meta) return null;
+  if(meta.blocked) return 'Ye account block kar diya gaya hai. Kripya apne software vendor se sampark karein.';
+  if(meta.subscriptionEnd && new Date(meta.subscriptionEnd) < new Date()) return 'Aapka subscription plan khatam ho gaya hai. Kripya renew karne ke liye apne software vendor se sampark karein.';
+  return null;
 }
 async function submitClientLogin(){
   const id = sanitizeClientId(document.getElementById('cg_id2').value);
@@ -666,6 +740,8 @@ async function submitClientLogin(){
     document.getElementById('authErr').textContent = 'Client ID ya Password Key galat hai.';
     return;
   }
+  const blockMsg = clientAccessBlockedMessage(existing);
+  if(blockMsg){ document.getElementById('authErr').textContent = blockMsg; return; }
   clientId = id; clientKey = key;
   try{ localStorage.setItem('hms_client_id', id); localStorage.setItem('hms_client_key', key); }catch(e){}
   await continueBoot();
@@ -676,16 +752,196 @@ function switchClient(){
   clientId=''; clientKey=''; currentUser=null;
   renderClientGate('choose');
 }
+
+/* ---------------- SUPER ADMIN (VENDOR) PANEL ---------------- */
+async function renderSuperAdminGate(){
+  const overlay = document.getElementById('authOverlay');
+  overlay.classList.remove('hidden');
+  const existing = await superAdminMetaGet();
+  if(!existing){
+    document.getElementById('authTitle').textContent = 'Super Admin Setup';
+    document.getElementById('authSub').textContent = 'Ye ek hi baar hoga - apna Vendor/Super Admin username aur password banayein.';
+    document.getElementById('authBody').innerHTML = `
+      <label class="f">Super Admin Username<input id="sa_user" style="width:100%"></label>
+      <label class="f">Super Admin Password<input id="sa_pass" type="password" style="width:100%"></label>
+      <div class="autherr" id="authErr"></div>
+      <button class="btn accent" style="width:100%;margin-top:6px;" onclick="submitSuperAdminSetup()">Super Admin Banayein</button>
+      <div style="text-align:center;margin-top:12px;"><a href="#" style="font-size:12px;color:var(--ink-soft);" onclick="event.preventDefault();renderClientGate('choose');">Wapas Jayein</a></div>
+    `;
+  } else {
+    document.getElementById('authTitle').textContent = 'Super Admin Login';
+    document.getElementById('authSub').textContent = 'Vendor panel access karne ke liye login karein.';
+    document.getElementById('authBody').innerHTML = `
+      <label class="f">Username<input id="sa_luser" style="width:100%"></label>
+      <label class="f">Password<input id="sa_lpass" type="password" style="width:100%"></label>
+      <div class="autherr" id="authErr"></div>
+      <button class="btn accent" style="width:100%;margin-top:6px;" onclick="submitSuperAdminLogin()">Login Karein</button>
+      <div style="text-align:center;margin-top:12px;"><a href="#" style="font-size:12px;color:var(--ink-soft);" onclick="event.preventDefault();renderClientGate('choose');">Wapas Jayein</a></div>
+    `;
+  }
+}
+async function submitSuperAdminSetup(){
+  const uname = document.getElementById('sa_user').value.trim();
+  const upass = document.getElementById('sa_pass').value;
+  if(!uname || !upass){ document.getElementById('authErr').textContent = 'Username aur password dono bharein.'; return; }
+  await superAdminMetaSet({username:uname, password:upass, createdAt:new Date().toISOString()});
+  superAdmin = {username:uname};
+  openSuperAdminDashboard();
+}
+async function submitSuperAdminLogin(){
+  const uname = document.getElementById('sa_luser').value.trim();
+  const upass = document.getElementById('sa_lpass').value;
+  const existing = await superAdminMetaGet();
+  if(!existing || existing.username!==uname || existing.password!==upass){
+    document.getElementById('authErr').textContent = 'Username ya password galat hai.';
+    return;
+  }
+  superAdmin = {username:uname};
+  openSuperAdminDashboard();
+}
+function superAdminLogout(){
+  superAdmin = null;
+  document.getElementById('superAdminOverlay').classList.add('hidden');
+  renderClientGate('choose');
+}
+async function openSuperAdminDashboard(){
+  document.getElementById('authOverlay').classList.add('hidden');
+  document.getElementById('superAdminOverlay').classList.remove('hidden');
+  await renderSuperAdminDashboard();
+}
+function planDaysFor(planName){
+  const map = {'Trial':14, 'Monthly':30, 'Quarterly':90, 'Half-Yearly':182, 'Yearly':365};
+  return map[planName] || 30;
+}
+async function renderSuperAdminDashboard(){
+  const body = document.getElementById('superAdminBody');
+  body.innerHTML = `<div class="empty-hint">Loading...</div>`;
+  const index = await indexGet();
+  const rows = [];
+  for(const entry of index){
+    const meta = await clientMetaGet(entry.id);
+    rows.push({id:entry.id, meta: meta || {}});
+  }
+  const now = Date.now();
+  const online = rows.filter(r=> r.meta.lastActiveAt && (now - new Date(r.meta.lastActiveAt).getTime()) < 3*60000).length;
+  const blocked = rows.filter(r=> r.meta.blocked).length;
+  const expiringSoon = rows.filter(r=> r.meta.subscriptionEnd && (new Date(r.meta.subscriptionEnd).getTime()-now) < 7*24*60*60*1000 && (new Date(r.meta.subscriptionEnd).getTime()-now) > 0).length;
+
+  body.innerHTML = `
+    <div class="cardrow" style="margin-bottom:16px;">
+      <div class="stat"><div class="label">Total Restaurants</div><div class="value">${rows.length}</div></div>
+      <div class="stat"><div class="label">Abhi Online</div><div class="value">${online}</div></div>
+      <div class="stat"><div class="label">Blocked</div><div class="value">${blocked}</div></div>
+      <div class="stat"><div class="label">7 Din Mein Expire</div><div class="value">${expiringSoon}</div></div>
+    </div>
+    <div class="panel" style="margin-bottom:16px;">
+      <h2 class="sectitle">Naya Client (Restaurant) Banayein</h2>
+      <div class="formgrid">
+        <label class="f">Client ID<input id="ga_id" style="width:100%" placeholder="e.g. sharma-hotel-jaipur"></label>
+        <label class="f">Password Key<input id="ga_key" style="width:100%"></label>
+        <label class="f">Subscription Plan<select id="ga_plan" style="width:100%">
+          <option>Trial</option><option>Monthly</option><option>Quarterly</option><option>Half-Yearly</option><option>Yearly</option>
+        </select></label>
+        <button class="btn accent" onclick="adminGenerateClient()">+ Client Banayein</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h2 class="sectitle">Sabhi Restaurants Ka Record</h2>
+      <table class="datatable"><thead><tr>
+        <th>Client ID</th><th>Hotel Naam</th><th>Status</th><th>Registered</th><th>Plan</th><th>Plan Start</th><th>Plan End</th><th>Access</th><th style="width:210px;">Actions</th>
+      </tr></thead><tbody>
+        ${rows.map(r=>{
+          const m = r.meta;
+          const isOnline = m.lastActiveAt && (now - new Date(m.lastActiveAt).getTime()) < 3*60000;
+          const expired = m.subscriptionEnd && new Date(m.subscriptionEnd).getTime() < now;
+          return `<tr>
+            <td>${r.id}</td>
+            <td>${m.hotelName || '-'}</td>
+            <td>${isOnline ? '<span class="pill good">Online</span>' : '<span class="pill bad">Offline</span>'}${m.lastActiveAt ? `<div style="font-size:10.5px;color:var(--ink-soft);margin-top:2px;">${new Date(m.lastActiveAt).toLocaleString('en-IN')}</div>` : ''}</td>
+            <td>${m.createdAt ? new Date(m.createdAt).toLocaleDateString('en-IN') : '-'}</td>
+            <td>${m.subscriptionPlan || '-'}</td>
+            <td>${m.subscriptionStart ? new Date(m.subscriptionStart).toLocaleDateString('en-IN') : '-'}</td>
+            <td>${m.subscriptionEnd ? new Date(m.subscriptionEnd).toLocaleDateString('en-IN') : '-'}${expired ? ' <span class="pill bad">Expired</span>' : ''}</td>
+            <td>${m.blocked ? '<span class="pill bad">Blocked</span>' : '<span class="pill good">Active</span>'}</td>
+            <td>
+              <button class="btn ${m.blocked?'accent':'danger'} small" onclick="adminToggleBlock('${r.id}', ${!m.blocked})">${m.blocked ? 'Unblock' : 'Block'}</button>
+              <button class="btn ghost small" onclick="adminOpenAssignPlan('${r.id}')">Plan Do</button>
+            </td>
+          </tr>
+          <tr id="planRow-${r.id}" style="display:none;"><td colspan="9"><div id="planBox-${r.id}"></div></td></tr>`;
+        }).join('') || '<tr><td colspan="9" class="empty-hint">Abhi tak koi restaurant register nahi hua.</td></tr>'}
+      </tbody></table>
+    </div>
+  `;
+}
+async function adminGenerateClient(){
+  const id = sanitizeClientId(document.getElementById('ga_id').value);
+  const key = document.getElementById('ga_key').value.trim();
+  const plan = document.getElementById('ga_plan').value;
+  if(!id || !key){ alert('Client ID aur Password Key dono bharein.'); return; }
+  const existing = await clientMetaGet(id);
+  if(existing){ alert('Ye Client ID pehle se maujood hai.'); return; }
+  const now = new Date();
+  const end = new Date(now.getTime() + planDaysFor(plan)*24*60*60*1000);
+  await clientMetaSet(id, {
+    passwordKey:key, createdAt:now.toISOString(), blocked:false,
+    subscriptionPlan:plan, subscriptionStart:now.toISOString(), subscriptionEnd:end.toISOString(), hotelName:''
+  });
+  await indexAdd(id);
+  document.getElementById('ga_id').value=''; document.getElementById('ga_key').value='';
+  await renderSuperAdminDashboard();
+}
+async function adminToggleBlock(cid, newBlockedState){
+  await clientMetaSet(cid, {blocked:newBlockedState});
+  await renderSuperAdminDashboard();
+}
+function adminOpenAssignPlan(cid){
+  const row = document.getElementById('planRow-'+cid);
+  const box = document.getElementById('planBox-'+cid);
+  if(row.style.display==='table-row'){ row.style.display='none'; return; }
+  row.style.display = 'table-row';
+  box.innerHTML = `<div class="formgrid">
+    <label class="f">Naya Plan<select id="pd_plan_${cid}" style="width:100%">
+      <option>Trial</option><option>Monthly</option><option>Quarterly</option><option>Half-Yearly</option><option>Yearly</option>
+    </select></label>
+    <label class="f">Shuru Kab Se (aaj se)<input type="text" value="Aaj" disabled style="width:100%"></label>
+    <button class="btn accent" onclick="adminAssignPlan('${cid}')">Confirm Karein</button>
+  </div>`;
+}
+async function adminAssignPlan(cid){
+  const plan = document.getElementById('pd_plan_'+cid).value;
+  const now = new Date();
+  const end = new Date(now.getTime() + planDaysFor(plan)*24*60*60*1000);
+  await clientMetaSet(cid, {subscriptionPlan:plan, subscriptionStart:now.toISOString(), subscriptionEnd:end.toISOString()});
+  await renderSuperAdminDashboard();
+}
 async function continueBoot(){
+  const meta = await clientMetaGet(clientId);
+  const blockMsg = clientAccessBlockedMessage(meta);
+  if(blockMsg){
+    try{ localStorage.removeItem('hms_client_id'); localStorage.removeItem('hms_client_key'); }catch(e){}
+    clientId=''; clientKey='';
+    renderClientGate('choose');
+    alert(blockMsg);
+    return;
+  }
   await loadState();
   tickClock();
   applyTheme(settings.theme || 'saffron');
   updateBrand();
+  startHeartbeat();
   let sessionUserId = null;
   try{ sessionUserId = localStorage.getItem('hms_session_user_id_'+clientId); }catch(e){}
   const sessionUser = sessionUserId ? users.find(u=>u.id===sessionUserId) : null;
   if(sessionUser){ currentUser = sessionUser; enterApp(); }
   else { renderAuthScreen(); }
+}
+let heartbeatTimer = null;
+function startHeartbeat(){
+  if(heartbeatTimer) clearInterval(heartbeatTimer);
+  const beat = ()=>{ clientMetaSet(clientId, {lastActiveAt:new Date().toISOString(), hotelName: settings ? (settings.hotelName||'') : ''}); };
+  beat();
+  heartbeatTimer = setInterval(beat, 60000);
 }
 
 /* ---------------- AUTH ---------------- */
@@ -758,6 +1014,7 @@ async function submitLogin(){
   }
   currentUser = u;
   saveSession(u.id);
+  clientMetaSet(clientId, {lastLoginAt:new Date().toISOString(), lastLoginUser:u.username, lastActiveAt:new Date().toISOString()});
   enterApp();
 }
 function saveSession(userId){
@@ -767,6 +1024,7 @@ function clearSession(){
   try{ localStorage.removeItem('hms_session_user_id_'+clientId); }catch(e){}
 }
 function logout(){
+  clientMetaSet(clientId, {lastLogoutAt:new Date().toISOString()});
   currentUser = null;
   clearSession();
   document.getElementById('authOverlay').classList.remove('hidden');
@@ -940,6 +1198,7 @@ async function saveBusinessInfo(){
   settings.address = document.getElementById('set_addr').value.trim();
   settings.phone = document.getElementById('set_phone').value.trim();
   await persist('settings');
+  clientMetaSet(clientId, {hotelName: settings.hotelName});
   updateBrand();
   alert('Hotel ki jaankari save ho gayi.');
 }
