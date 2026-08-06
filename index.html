@@ -357,7 +357,7 @@
         <div class="formgrid" style="margin-bottom:14px;">
           <label class="f">Username<input id="nu_username"></label>
           <label class="f">Mobile Number (OTP ke liye)<input id="nu_mobile" placeholder="10 digit mobile"></label>
-          <label class="f">Password<input id="nu_password" type="text"></label>
+          <label class="f">Password<input id="nu_password" type="password" autocomplete="new-password"></label>
         </div>
         <div class="permsline">
           <label class="chk"><input type="checkbox" id="nu_tables" checked> Tables/KOT</label>
@@ -491,6 +491,18 @@ function maxDiscountAllowed(){
   return currentUser.maxDiscountPct || 0;
 }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+async function hashSecret(text){
+  try{
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  }catch(e){ console.error('hashing failed', e); return text; }
+}
+function looksHashed(str){ return typeof str==='string' && /^[0-9a-f]{64}$/.test(str); }
+async function passwordMatches(entered, stored){
+  if(!stored) return false;
+  if(looksHashed(stored)) return (await hashSecret(entered)) === stored;
+  return entered === stored;
+}
 function money(n){ return 'Rs ' + Math.round(Number(n)||0); }
 function todayISO(){ const d=new Date(); return d.toISOString().slice(0,10); }
 
@@ -675,7 +687,7 @@ async function submitClientRegister(){
     document.getElementById('authErr').textContent = 'Client ID "'+id+'" pehle se '+regDate+' ko registered ho chuka hai. "Login" use karein ya koi aur unique naam chunein (jaise "'+id+'-2").';
     return;
   }
-  await clientMetaSet(id, { passwordKey:key, createdAt:new Date().toISOString(), hotelName:'' });
+  await clientMetaSet(id, { passwordKey: await hashSecret(key), createdAt:new Date().toISOString(), hotelName:'' });
   clientId = id; clientKey = key;
   try{ localStorage.setItem('hms_client_id', id); localStorage.setItem('hms_client_key', key); }catch(e){}
   await continueBoot();
@@ -690,9 +702,14 @@ async function submitClientLogin(){
     document.getElementById('authErr').textContent = 'Firebase/Internet se connect nahi ho pa raha. Settings mein Firebase config check karein.';
     return;
   }
-  if(!existing || existing.passwordKey !== key){
+  const ok = existing && await passwordMatches(key, existing.passwordKey);
+  if(!ok){
     document.getElementById('authErr').textContent = 'Client ID ya Password Key galat hai.';
     return;
+  }
+  if(!looksHashed(existing.passwordKey)){
+    existing.passwordKey = await hashSecret(key);
+    await clientMetaSet(id, existing);
   }
   clientId = id; clientKey = key;
   try{ localStorage.setItem('hms_client_id', id); localStorage.setItem('hms_client_key', key); }catch(e){}
@@ -746,7 +763,7 @@ function renderAuthScreen(){
       <label class="f">GST Number (optional)<input id="su_gst" placeholder="e.g. 22AAAAA0000A1Z5"></label>
       <label class="f">Master Username<input id="su_user" placeholder="e.g. admin"></label>
       <label class="f">Master Mobile Number<input id="su_mobile" placeholder="10 digit mobile"></label>
-      <label class="f">Master Password<input id="su_pass" type="text"></label>
+      <label class="f">Master Password<input id="su_pass" type="password" autocomplete="new-password"></label>
       <label class="f">Vendor Pass Key<input id="su_passkey" type="password" placeholder="Authorized pass key daalein"></label>
       <div class="autherr" id="authErr"></div>
       <button class="btn accent" style="width:100%;margin-top:6px;" onclick="submitSetup()">Master ID Banayein & Shuru Karein</button>
@@ -756,7 +773,7 @@ function renderAuthScreen(){
     document.getElementById('authSub').textContent = 'Apni User ID aur Password daalein.';
     document.getElementById('authBody').innerHTML = `
       <label class="f">Username<input id="li_user"></label>
-      <label class="f">Password<input id="li_pass" type="text"></label>
+      <label class="f">Password<input id="li_pass" type="password" autocomplete="current-password"></label>
       <div class="autherr" id="authErr"></div>
       <button class="btn accent" style="width:100%;margin-top:6px;" onclick="submitLogin()">Login</button>
       <button class="btn ghost" style="width:100%;margin-top:8px;" onclick="startForgotPassword()">Password Bhool Gaye? (OTP Se Reset Karein)</button>
@@ -785,7 +802,7 @@ async function submitSetup(){
   }
   settings.hotelName = hotel; settings.gstNo = gst; settings.theme = 'saffron';
   await persist('settings');
-  const master = {id:uid(), username:uname, mobile, password:upass, role:'master', permissions:{tables:true,menu:true,stock:true,rooms:true,reports:true,settings:true,discount:true}};
+  const master = {id:uid(), username:uname, mobile, password: await hashSecret(upass), role:'master', permissions:{tables:true,menu:true,stock:true,rooms:true,reports:true,settings:true,discount:true}};
   users.push(master);
   await persist('users');
   currentUser = master;
@@ -795,10 +812,15 @@ async function submitSetup(){
 async function submitLogin(){
   const uname = document.getElementById('li_user').value.trim();
   const upass = document.getElementById('li_pass').value;
-  const u = users.find(x=>x.username===uname && x.password===upass);
-  if(!u){
+  const u = users.find(x=>x.username===uname);
+  const ok = u && await passwordMatches(upass, u.password);
+  if(!ok){
     document.getElementById('authErr').textContent = 'Username ya password galat hai.';
     return;
+  }
+  if(!looksHashed(u.password)){
+    u.password = await hashSecret(upass);
+    await persist('users');
   }
   currentUser = u;
   saveSession(u.id);
@@ -849,7 +871,7 @@ function sendResetOtp(){
       <div style="font-family:var(--mono);font-size:22px;font-weight:700;letter-spacing:.1em;">${fpOtp}</div>
     </div>
     <label class="f">OTP Daalein<input id="fp_otp_input" placeholder="6 digit OTP"></label>
-    <label class="f">Naya Password<input id="fp_newpass" type="text"></label>
+    <label class="f">Naya Password<input id="fp_newpass" type="password" autocomplete="new-password"></label>
     <div class="autherr" id="authErr"></div>
     <button class="btn accent" style="width:100%;margin-top:6px;" onclick="confirmResetOtp()">Password Reset Karein</button>
     <button class="btn ghost" style="width:100%;margin-top:8px;" onclick="renderAuthScreen()">Cancel</button>
@@ -1064,7 +1086,7 @@ function renderUsers(){
             <label class="chk"><input type="checkbox" id="eu_discount" ${u.permissions.discount?'checked':''}> Discount Dene Ki Ijazat</label>
           </div>
           <label class="f" style="max-width:220px;">Max Discount Limit (%)<input id="eu_maxdisc" type="number" min="0" max="100" value="${u.maxDiscountPct||0}" style="width:100%"></label>
-          <label class="f" style="max-width:220px;">Naya Password (khaali chodein agar badalna nahi)<input id="eu_pass" type="text"></label>
+          <label class="f" style="max-width:220px;">Naya Password (khaali chodein agar badalna nahi)<input id="eu_pass" type="password" autocomplete="new-password"></label>
           <div style="margin-top:8px;display:flex;gap:8px;">
             <button class="btn accent small" onclick="saveUserEdit('${u.id}')">Save</button>
             <button class="btn ghost small" onclick="editingUserId=null;renderUsers();">Cancel</button>
@@ -1679,108 +1701,12 @@ async function sendKOT(){
   renderTicket();
   renderTables();
 }
-/* ---------------- SPLIT PAYMENT (shared across table bill, room bill, edits) ---------------- */
-let splitPaymentRows = [{mode:'Cash', amount:0, ref:''}];
-let currentPreviewRefresh = null;
-function paymentSummaryFromRows(rows){
-  const label = r => r.mode + ((r.mode==='Card' && r.ref) ? ' [Ref: '+r.ref+']' : '');
-  if(rows.length<=1) return rows[0] ? label(rows[0]) : 'Cash';
-  return 'Split (' + rows.map(r=> r.mode+' Rs'+Math.round(r.amount)+((r.mode==='Card'&&r.ref)?' [Ref:'+r.ref+']':'')).join(' + ') + ')';
-}
-function getPaymentTotal(rows){ return rows.reduce((s,r)=>s+(parseFloat(r.amount)||0),0); }
-function paymentSectionHtml(){
-  const isSplit = splitPaymentRows.length>1;
-  return `
-    <div class="billbox" style="margin-top:2px;">
-      <label class="chk" style="margin-bottom:8px;"><input type="checkbox" id="pay_split_toggle" ${isSplit?'checked':''} onchange="onSplitToggle()"> Split Payment (ek se zyada tareeke se payment lein)</label>
-      <div id="paySingleBox" style="${isSplit?'display:none;':''}">
-        <label class="f">Payment Mode<select id="pay_single_mode" onchange="onSingleModeChange()">
-          ${['Cash','UPI','Card','Net Banking'].map(m=>`<option ${splitPaymentRows[0] && splitPaymentRows[0].mode===m?'selected':''}>${m}</option>`).join('')}
-        </select></label>
-        <label class="f" id="pay_single_refbox" style="margin-top:8px;${(splitPaymentRows[0]&&splitPaymentRows[0].mode==='Card')?'':'display:none;'}">Card Reference Number<input id="pay_single_ref" value="${(splitPaymentRows[0]&&splitPaymentRows[0].ref)||''}" style="width:100%" onchange="onSingleRefChange()"></label>
-      </div>
-      <div id="paySplitBox" style="${isSplit?'':'display:none;'}">
-        <div id="paySplitRows"></div>
-        <button class="btn ghost small" type="button" onclick="addSplitRow()">+ Payment Row Add Karein</button>
-        <div id="paySplitHint" style="margin-top:6px;font-size:12px;font-family:var(--mono);"></div>
-      </div>
-    </div>`;
-}
-function initPaymentSection(){
-  splitPaymentRows = [{mode:'Cash', amount:0, ref:''}];
-  if(document.getElementById('paySplitRows')) renderSplitRows();
-}
-function onSplitToggle(){
-  const isSplit = document.getElementById('pay_split_toggle').checked;
-  if(isSplit){
-    if(splitPaymentRows.length<2) splitPaymentRows = [{mode:'Cash',amount:0,ref:''},{mode:'Card',amount:0,ref:''}];
-    document.getElementById('paySingleBox').style.display='none';
-    document.getElementById('paySplitBox').style.display='block';
-    renderSplitRows();
-  } else {
-    splitPaymentRows = [splitPaymentRows[0] || {mode:'Cash',amount:0,ref:''}];
-    document.getElementById('paySingleBox').style.display='block';
-    document.getElementById('paySplitBox').style.display='none';
-  }
-  if(currentPreviewRefresh) currentPreviewRefresh();
-}
-function onSingleModeChange(){
-  const mode = document.getElementById('pay_single_mode').value;
-  splitPaymentRows[0].mode = mode;
-  document.getElementById('pay_single_refbox').style.display = mode==='Card' ? 'block' : 'none';
-  if(currentPreviewRefresh) currentPreviewRefresh();
-}
-function onSingleRefChange(){
-  splitPaymentRows[0].ref = document.getElementById('pay_single_ref').value.trim();
-}
-function addSplitRow(){
-  splitPaymentRows.push({mode:'Cash', amount:0, ref:''});
-  renderSplitRows();
-}
-function removeSplitRow(idx){
-  if(splitPaymentRows.length<=1) return;
-  splitPaymentRows.splice(idx,1);
-  renderSplitRows();
-  if(currentPreviewRefresh) currentPreviewRefresh();
-}
-function updateSplitRowMode(idx, value){ splitPaymentRows[idx].mode = value; renderSplitRows(); if(currentPreviewRefresh) currentPreviewRefresh(); }
-function updateSplitRowAmount(idx, value){ splitPaymentRows[idx].amount = parseFloat(value)||0; if(document.getElementById('paySplitHint')) document.getElementById('paySplitHint').textContent = 'Total Entered: ' + money(getPaymentTotal(splitPaymentRows)); if(currentPreviewRefresh) currentPreviewRefresh(); }
-function updateSplitRowRef(idx, value){ splitPaymentRows[idx].ref = value.trim(); }
-function renderSplitRows(){
-  const box = document.getElementById('paySplitRows');
-  if(!box) return;
-  box.innerHTML = splitPaymentRows.map((r,idx)=>`
-    <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center;flex-wrap:wrap;">
-      <select style="width:110px;" onchange="updateSplitRowMode(${idx}, this.value)">
-        ${['Cash','UPI','Card','Net Banking'].map(m=>`<option ${r.mode===m?'selected':''}>${m}</option>`).join('')}
-      </select>
-      <input type="number" placeholder="Amount" value="${r.amount||''}" style="width:100px;" onchange="updateSplitRowAmount(${idx}, this.value)">
-      ${r.mode==='Card' ? `<input placeholder="Ref No." value="${r.ref||''}" style="width:120px;" onchange="updateSplitRowRef(${idx}, this.value)">` : ''}
-      ${splitPaymentRows.length>1 ? `<button class="rm-btn" onclick="removeSplitRow(${idx})">&times;</button>` : ''}
-    </div>`).join('');
-  document.getElementById('paySplitHint').textContent = 'Total Entered: ' + money(getPaymentTotal(splitPaymentRows));
-}
-function finalizePaymentForAmount(grand){
-  if(splitPaymentRows.length===1){ splitPaymentRows[0].amount = grand; }
-  const breakdown = splitPaymentRows.filter(r=>r.amount>0).map(r=>({mode:r.mode, amount:Math.round(r.amount), ref: r.mode==='Card' ? (r.ref||'') : ''}));
-  const finalRows = breakdown.length ? breakdown : splitPaymentRows;
-  return { breakdown: finalRows, summary: paymentSummaryFromRows(finalRows) };
-}
-function validateSplitPaymentTotal(grand){
-  if(splitPaymentRows.length<=1) return true;
-  const entered = getPaymentTotal(splitPaymentRows);
-  if(Math.abs(entered - grand) > 1){
-    alert('Split payment ka total ('+money(entered)+') Grand Total ('+money(grand)+') se match nahi kar raha. Kripya amounts theek karein.');
-    return false;
-  }
-  return true;
-}
-
 function openBilling(){
   const order = getCurrentOrder();
   if(!order || order.lines.length===0){ alert('Order khaali hai'); return; }
   const discLocked = !canDiscount();
   const booking = order.isRoomOrder ? bookings.find(b=>b.id===order.bookingId) : null;
+  resetSplitPayment();
   document.getElementById('billSection').innerHTML = `
     <div class="billbox">
       ${order.isRoomOrder ? `<label class="chk" style="margin-bottom:10px;"><input type="checkbox" id="bl_chargetoroom" checked> Room Bill Mein Charge Karein (Check-out ke time collect hoga)</label>` : ''}
@@ -1794,9 +1720,9 @@ function openBilling(){
         <label class="f">Tax %<input id="bl_tax" type="number" value="5" style="width:100%"></label>
         <label class="f">Discount Type<select id="bl_disctype" style="width:100%" ${discLocked?'disabled':''}><option value="pct">Percent (%)</option><option value="amt">Amount (Rs)</option></select></label>
         <label class="f">Discount Value ${discLocked?'<span style="color:var(--bad);font-weight:600;">(Ijazat Nahi)</span>':`<span style="color:var(--ink-soft);font-weight:500;">(Max ${maxDiscountAllowed()}% ki ijazat hai)</span>`}<input id="bl_discval" type="number" value="0" style="width:100%" ${discLocked?'disabled':''}></label>
-        <label class="f">Payment Mode<select id="bl_pay" style="width:100%"><option>Cash</option><option>UPI</option><option>Card</option><option>Net Banking</option></select></label>
       </div>
-      <label class="f" style="margin-bottom:10px;">Remark / Note (bill par print hoga)<input id="bl_remark" style="width:100%" placeholder="e.g. Complimentary dessert, VIP guest, etc."></label>
+      <div class="billbox" style="margin-top:0;">${paymentModeBlockHtml()}</div>
+      <label class="f" style="margin-bottom:10px;margin-top:10px;">Remark / Note (bill par print hoga)<input id="bl_remark" style="width:100%" placeholder="e.g. Complimentary dessert, VIP guest, etc."></label>
       <div id="billPreview"></div>
       <button class="btn accent" style="width:100%;margin-top:8px;" onclick="confirmBill()">${order.isRoomOrder ? 'Confirm Karein' : 'Bill Confirm Karein & Table Free Karein'}</button>
     </div>`;
@@ -1818,6 +1744,106 @@ function computeDiscountAmt(subtotal){
     return Math.min(discVal, maxAmt);
   }
 }
+
+/* ---------------- SPLIT PAYMENT (SHARED ACROSS ALL BILLING SCREENS) ---------------- */
+let splitPayEnabled = false;
+let splitRows = [];
+let _lastGrandTotal = 0;
+function resetSplitPayment(){
+  splitPayEnabled = false;
+  splitRows = [];
+  _lastGrandTotal = 0;
+}
+function paymentModeBlockHtml(){
+  return `
+    <label class="chk" style="margin:6px 0;">
+      <input type="checkbox" id="splitToggle" onchange="toggleSplitPayment()" ${splitPayEnabled?'checked':''}> Split Payment Karein (Multiple Modes Se)
+    </label>
+    <div id="singlePayWrap" style="display:${splitPayEnabled?'none':'block'};">
+      <label class="f">Payment Mode<select id="pay_mode" style="width:100%"><option>Cash</option><option>UPI</option><option>Card</option><option>Net Banking</option></select></label>
+    </div>
+    <div id="splitPayWrap" style="display:${splitPayEnabled?'block':'none'};">
+      <div id="splitRowsBox"></div>
+      <button class="btn ghost small" type="button" style="margin-top:6px;" onclick="addSplitRow()">+ Payment Mode Add Karein</button>
+      <div id="splitSummary" style="margin-top:8px;font-size:12.5px;font-family:var(--mono);"></div>
+    </div>`;
+}
+function toggleSplitPayment(){
+  splitPayEnabled = document.getElementById('splitToggle').checked;
+  document.getElementById('singlePayWrap').style.display = splitPayEnabled ? 'none' : 'block';
+  document.getElementById('splitPayWrap').style.display = splitPayEnabled ? 'block' : 'none';
+  if(splitPayEnabled && splitRows.length===0){ splitRows = [{mode:'Cash', amount:0, ref:''}]; }
+  renderSplitRows();
+}
+function addSplitRow(){
+  splitRows.push({mode:'Cash', amount:0, ref:''});
+  renderSplitRows();
+}
+function removeSplitRow(idx){
+  splitRows.splice(idx,1);
+  renderSplitRows();
+}
+function updateSplitRow(idx, field, value){
+  if(!splitRows[idx]) return;
+  splitRows[idx][field] = field==='amount' ? (parseFloat(value)||0) : value;
+  if(field==='mode'){
+    renderSplitRows();
+  } else {
+    updateSplitSummary(_lastGrandTotal);
+  }
+}
+function renderSplitRows(){
+  const box = document.getElementById('splitRowsBox');
+  if(!box) return;
+  box.innerHTML = splitRows.map((r,idx)=>`
+    <div style="display:flex;gap:6px;align-items:flex-end;margin-bottom:6px;flex-wrap:wrap;">
+      <label class="f" style="flex:1;min-width:90px;">Mode
+        <select onchange="updateSplitRow(${idx},'mode',this.value)" style="width:100%">
+          <option ${r.mode==='Cash'?'selected':''}>Cash</option>
+          <option ${r.mode==='UPI'?'selected':''}>UPI</option>
+          <option ${r.mode==='Card'?'selected':''}>Card</option>
+          <option ${r.mode==='Net Banking'?'selected':''}>Net Banking</option>
+        </select>
+      </label>
+      <label class="f" style="flex:1;min-width:90px;">Amount (Rs)
+        <input type="number" min="0" step="1" value="${r.amount||''}" oninput="updateSplitRow(${idx},'amount',this.value)" style="width:100%" placeholder="0">
+      </label>
+      ${r.mode!=='Cash' ? `<label class="f" style="flex:1;min-width:110px;">Reference No.
+        <input value="${(r.ref||'').replace(/"/g,'&quot;')}" oninput="updateSplitRow(${idx},'ref',this.value)" style="width:100%" placeholder="Txn/Ref ID"></label>`
+        : '<div style="flex:1;min-width:110px;"></div>'}
+      <button class="rm-btn" onclick="removeSplitRow(${idx})" style="margin-bottom:8px;">&times;</button>
+    </div>
+  `).join('') || `<div class="empty-hint" style="padding:8px 0;">Koi payment row nahi hai. "+ Payment Mode Add Karein" dabayein.</div>`;
+  updateSplitSummary(_lastGrandTotal);
+}
+function updateSplitSummary(grand){
+  _lastGrandTotal = grand;
+  const el = document.getElementById('splitSummary');
+  if(!el) return;
+  if(!splitPayEnabled){ el.innerHTML=''; return; }
+  const entered = splitRows.reduce((s,r)=>s+(r.amount||0),0);
+  const diff = Math.round((grand-entered)*100)/100;
+  const matched = Math.abs(diff) < 1;
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;"><span>Total Entered</span><span>${money(entered)}</span></div>
+    <div style="display:flex;justify-content:space-between;"><span>Grand Total</span><span>${money(grand)}</span></div>
+    <div style="display:flex;justify-content:space-between;font-weight:700;color:${matched?'var(--good)':'var(--bad)'};"><span>${matched?'Match Ho Gaya':'Farak (Match Nahi Ho Raha)'}</span><span>${money(Math.abs(diff))}</span></div>`;
+}
+function buildPaymentResult(grand){
+  if(!splitPayEnabled){
+    return { ok:true, payment: document.getElementById('pay_mode').value, paymentSplits: null };
+  }
+  const rows = splitRows.filter(r=>r.amount>0);
+  const entered = rows.reduce((s,r)=>s+r.amount,0);
+  if(rows.length===0){
+    return { ok:false, message:'Kam se kam ek payment mode ka amount daalein.' };
+  }
+  if(Math.abs(entered-grand) >= 1){
+    return { ok:false, message:'Split payment ka total ('+money(entered)+') Grand Total ('+money(grand)+') se match nahi kar raha. Amounts sahi karein.' };
+  }
+  const label = 'Split: ' + rows.map(r=> r.mode+' '+money(r.amount)+(r.ref?' (Ref: '+r.ref+')':'')).join(' + ');
+  return { ok:true, payment: label, paymentSplits: rows.map(r=>({mode:r.mode, amount:r.amount, ref:r.ref||''})) };
+}
 function updateBillPreview(){
   const order = getCurrentOrder();
   if(!order) return;
@@ -1836,6 +1862,7 @@ function updateBillPreview(){
     <div class="billrow"><span>Discount${discType==='pct' ? ' ('+discVal+'%)' : ''}</span><span>-${money(disc)}</span></div>
     <div class="billrow"><span>Round Off</span><span>${roundOff>=0?'+':''}${roundOff.toFixed(2)}</span></div>
     <div class="billrow grand"><span>Grand Total</span><span>${money(grand)}</span></div>`;
+  updateSplitSummary(grand);
 }
 async function confirmBill(){
   const order = getCurrentOrder();
@@ -1850,7 +1877,6 @@ async function confirmBill(){
   const grandRaw = Math.max(0, subtotal+taxAmt-disc);
   const grand = Math.round(grandRaw);
   const roundOff = Number((grand - grandRaw).toFixed(2));
-  const pay = document.getElementById('bl_pay').value;
 
   const custName = document.getElementById('bl_custname').value.trim();
   const custPhone = document.getElementById('bl_custphone').value.trim();
@@ -1883,13 +1909,16 @@ async function confirmBill(){
     return;
   }
 
+  const payResult = buildPaymentResult(grand);
+  if(!payResult.ok){ alert(payResult.message); return; }
+
   const sale = {
     id: 'B' + (sales.length+1001), date: new Date().toISOString(), tableName: order.tableName,
     staffName: order.staffName || '',
     customerName: custName, customerPhone: custPhone, customerAddress: custAddr, customerGst: custGst,
     lines: order.lines.map(l=>({itemId:l.itemId, name:l.name, qty:l.qty, price:l.price, total:l.qty*l.price})),
     subtotal, taxPct, taxAmt, discountType:discType, discountValue:discVal, discount:disc,
-    roundOff, grandTotal:grand, payment:pay, remark
+    roundOff, grandTotal:grand, payment:payResult.payment, paymentSplits:payResult.paymentSplits, remark
   };
   sales.push(sale);
 
@@ -2185,6 +2214,11 @@ function openBillEditor(saleId){
   document.getElementById('orderOverlay').classList.add('active');
   renderMenuPicker();
   renderTicket();
+  resetSplitPayment();
+  if(sale.paymentSplits && sale.paymentSplits.length){
+    splitPayEnabled = true;
+    splitRows = sale.paymentSplits.map(r=>({mode:r.mode, amount:r.amount, ref:r.ref||''}));
+  }
   document.getElementById('billSection').innerHTML = `
     <div class="billbox">
       <div class="formgrid" style="margin-bottom:10px;">
@@ -2200,21 +2234,21 @@ function openBillEditor(saleId){
           <option value="amt" ${sale.discountType==='amt'?'selected':''}>Amount (Rs)</option>
         </select></label>
         <label class="f">Discount Value<input id="bl_discval" type="number" value="${sale.discountValue!==undefined?sale.discountValue:sale.discount}" style="width:100%"></label>
-        <label class="f">Payment Mode<select id="bl_pay" style="width:100%">
-          <option ${sale.payment==='Cash'?'selected':''}>Cash</option>
-          <option ${sale.payment==='UPI'?'selected':''}>UPI</option>
-          <option ${sale.payment==='Card'?'selected':''}>Card</option>
-          <option ${sale.payment==='Net Banking'?'selected':''}>Net Banking</option>
-        </select></label>
       </div>
-      <label class="f" style="margin-bottom:10px;">Remark / Note<input id="bl_remark" value="${(sale.remark||'').replace(/"/g,'&quot;')}" style="width:100%"></label>
+      <div class="billbox" style="margin-top:0;">${paymentModeBlockHtml()}</div>
+      <label class="f" style="margin-bottom:10px;margin-top:10px;">Remark / Note<input id="bl_remark" value="${(sale.remark||'').replace(/"/g,'&quot;')}" style="width:100%"></label>
       <div id="billPreview"></div>
       <button class="btn accent" style="width:100%;margin-top:8px;" onclick="confirmBillEdit()">Bill Update Karein</button>
     </div>`;
+  if(!splitPayEnabled){
+    const singleSel = document.getElementById('pay_mode');
+    if(singleSel && ['Cash','UPI','Card','Net Banking'].includes(sale.payment)) singleSel.value = sale.payment;
+  }
   document.getElementById('bl_tax').addEventListener('input', updateBillPreview);
   document.getElementById('bl_disctype').addEventListener('change', updateBillPreview);
   document.getElementById('bl_discval').addEventListener('input', updateBillPreview);
   updateBillPreview();
+  if(splitPayEnabled) renderSplitRows();
 }
 async function confirmBillEdit(){
   const sale = sales.find(s=>s.id===editingBillId);
@@ -2228,7 +2262,8 @@ async function confirmBillEdit(){
   const grandRaw = Math.max(0, subtotal+taxAmt-disc);
   const grand = Math.round(grandRaw);
   const roundOff = Number((grand - grandRaw).toFixed(2));
-  const pay = document.getElementById('bl_pay').value;
+  const payResult = buildPaymentResult(grand);
+  if(!payResult.ok){ alert(payResult.message); return; }
 
   sale.lines.forEach(old=>{
     const item = items.find(i=>i.id===old.itemId);
@@ -2240,7 +2275,7 @@ async function confirmBillEdit(){
   });
 
   sale.lines = editingBillTemp.lines.map(l=>({itemId:l.itemId, name:l.name, qty:l.qty, price:l.price, total:l.qty*l.price}));
-  sale.subtotal = subtotal; sale.taxPct = taxPct; sale.discountType = discType; sale.discountValue = discVal; sale.discount = disc; sale.taxAmt = taxAmt; sale.roundOff = roundOff; sale.grandTotal = grand; sale.payment = pay;
+  sale.subtotal = subtotal; sale.taxPct = taxPct; sale.discountType = discType; sale.discountValue = discVal; sale.discount = disc; sale.taxAmt = taxAmt; sale.roundOff = roundOff; sale.grandTotal = grand; sale.payment = payResult.payment; sale.paymentSplits = payResult.paymentSplits;
   sale.customerName = document.getElementById('bl_custname').value.trim();
   sale.customerPhone = document.getElementById('bl_custphone').value.trim();
   sale.customerAddress = document.getElementById('bl_custaddr').value.trim();
@@ -2361,6 +2396,11 @@ function openRoomBillEditor(bookingId){
   if(!booking) return;
   document.getElementById('roomOverlay').classList.add('active');
   const discLocked = false;
+  resetSplitPayment();
+  if(booking.paymentSplits && booking.paymentSplits.length){
+    splitPayEnabled = true;
+    splitRows = booking.paymentSplits.map(r=>({mode:r.mode, amount:r.amount, ref:r.ref||''}));
+  }
   document.getElementById('roomModalTitle').textContent = 'Bill Edit: Room ' + booking.roomNo + ' (' + booking.guestName + ')';
   document.getElementById('roomModalBody').innerHTML = `
     <div class="billbox">
@@ -2373,18 +2413,17 @@ function openRoomBillEditor(bookingId){
           <option value="amt" ${booking.discountType==='amt'?'selected':''}>Amount (Rs)</option>
         </select></label>
         <label class="f">Discount Value (Master ke liye limit nahi hai)<input id="reb_discval" type="number" value="${booking.discountValue||0}" style="width:100%"></label>
-        <label class="f">Payment Mode<select id="reb_pay" style="width:100%">
-          <option ${booking.payment==='Cash'?'selected':''}>Cash</option>
-          <option ${booking.payment==='UPI'?'selected':''}>UPI</option>
-          <option ${booking.payment==='Card'?'selected':''}>Card</option>
-          <option ${booking.payment==='Net Banking'?'selected':''}>Net Banking</option>
-        </select></label>
       </div>
+      <div class="billbox" style="margin-top:0;">${paymentModeBlockHtml()}</div>
       <label class="f" style="margin-top:10px;">Remark<input id="reb_remark" value="${(booking.remark||'').replace(/"/g,'&quot;')}" style="width:100%"></label>
       <div id="roomBillEditPreview" style="margin-top:8px;"></div>
     </div>
     <button class="btn accent" style="width:100%;margin-top:10px;" onclick="confirmRoomBillEdit('${booking.id}')">Bill Update Karein</button>
   `;
+  if(!splitPayEnabled){
+    const singleSel = document.getElementById('pay_mode');
+    if(singleSel && ['Cash','UPI','Card','Net Banking'].includes(booking.payment)) singleSel.value = booking.payment;
+  }
   const chargeBase = (booking.roomTotal||0) + (booking.servicesTotal||0);
   const updatePreview = ()=>{
     const taxPct = parseFloat(document.getElementById('reb_tax').value)||0;
@@ -2403,11 +2442,13 @@ function openRoomBillEditor(bookingId){
       <div class="billrow"><span>Round Off</span><span>${roundOff>=0?'+':''}${roundOff.toFixed(2)}</span></div>
       <div class="billrow grand"><span>Grand Total</span><span>${money(grand)}</span></div>
       <div class="billrow grand" style="color:var(--accent-deep);"><span>Balance Due</span><span>${money(balanceDue)}</span></div>`;
+    updateSplitSummary(balanceDue);
   };
   ['reb_tax','reb_disctype','reb_discval'].forEach(id=>{
     document.getElementById(id).addEventListener(id==='reb_disctype'?'change':'input', updatePreview);
   });
   updatePreview();
+  if(splitPayEnabled) renderSplitRows();
 }
 async function confirmRoomBillEdit(bookingId){
   const booking = bookings.find(b=>b.id===bookingId);
@@ -2421,10 +2462,13 @@ async function confirmRoomBillEdit(bookingId){
   const grandRaw = Math.max(0, chargeBase+taxAmt-disc);
   const grand = Math.round(grandRaw);
   const roundOff = Number((grand - grandRaw).toFixed(2));
+  const balanceDue = Math.max(0, grand - (booking.advance||0));
+  const payResult = buildPaymentResult(balanceDue);
+  if(!payResult.ok){ alert(payResult.message); return; }
   booking.taxPct=taxPct; booking.discountType=discType; booking.discountValue=discVal; booking.discount=disc;
   booking.taxAmt=taxAmt; booking.roundOff=roundOff; booking.grandTotal=grand;
-  booking.balanceDue = Math.max(0, grand - (booking.advance||0));
-  booking.payment = document.getElementById('reb_pay').value;
+  booking.balanceDue = balanceDue;
+  booking.payment = payResult.payment; booking.paymentSplits = payResult.paymentSplits;
   booking.remark = document.getElementById('reb_remark').value.trim();
   await persist('bookings');
   document.getElementById('roomOverlay').classList.remove('active');
@@ -2678,6 +2722,7 @@ function openCheckoutBilling(bookingId){
   const servicesTotal = (booking.services||[]).reduce((s,x)=>s+x.amount,0);
   const chargeBase = roomTotal + servicesTotal;
   const discLocked = !canDiscount();
+  resetSplitPayment();
   document.getElementById('roomModalTitle').textContent = 'Check-Out: Room ' + booking.roomNo;
   document.getElementById('roomModalBody').innerHTML = `
     <div class="billbox">
@@ -2689,8 +2734,8 @@ function openCheckoutBilling(bookingId){
         <label class="f">Tax %<input id="rb_tax" type="number" value="5" style="width:100%"></label>
         <label class="f">Discount Type<select id="rb_disctype" style="width:100%" ${discLocked?'disabled':''}><option value="pct">Percent (%)</option><option value="amt">Amount (Rs)</option></select></label>
         <label class="f">Discount Value ${discLocked?'<span style="color:var(--bad);font-weight:600;">(Ijazat Nahi)</span>':`<span style="color:var(--ink-soft);font-weight:500;">(Max ${maxDiscountAllowed()}%)</span>`}<input id="rb_discval" type="number" value="0" style="width:100%" ${discLocked?'disabled':''}></label>
-        <label class="f">Payment Mode<select id="rb_pay" style="width:100%"><option>Cash</option><option>UPI</option><option>Card</option><option>Net Banking</option></select></label>
       </div>
+      <div class="billbox" style="margin-top:0;">${paymentModeBlockHtml()}</div>
       <label class="f" style="margin-top:10px;">Remark / Note (bill par print hoga)<input id="rb_remark" style="width:100%" placeholder="e.g. Late checkout waived, early checkin, etc."></label>
       <div id="roomBillPreview" style="margin-top:8px;"></div>
     </div>
@@ -2732,6 +2777,7 @@ function updateRoomBillPreview(chargeBase, advance){
     <div class="billrow grand"><span>Grand Total</span><span>${money(grand)}</span></div>
     <div class="billrow"><span>Advance Paid</span><span>-${money(advance||0)}</span></div>
     <div class="billrow grand" style="color:var(--accent-deep);"><span>Balance Due</span><span>${money(balanceDue)}</span></div>`;
+  updateSplitSummary(balanceDue);
 }
 async function confirmCheckout(bookingId, nights, roomTotal, servicesTotal){
   const booking = bookings.find(b=>b.id===bookingId);
@@ -2746,16 +2792,17 @@ async function confirmCheckout(bookingId, nights, roomTotal, servicesTotal){
   const grandRaw = Math.max(0, chargeBase+taxAmt-disc);
   const grand = Math.round(grandRaw);
   const roundOff = Number((grand - grandRaw).toFixed(2));
-  const pay = document.getElementById('rb_pay').value;
   const remark = document.getElementById('rb_remark').value.trim();
   const balanceDue = Math.max(0, grand - (booking.advance||0));
+  const payResult = buildPaymentResult(balanceDue);
+  if(!payResult.ok){ alert(payResult.message); return; }
 
   booking.status='closed';
   booking.checkoutDate = new Date().toISOString();
   booking.checkedOutBy = currentUser.username;
   booking.nights = nights; booking.roomTotal = roomTotal; booking.servicesTotal = servicesTotal||0;
   booking.taxPct=taxPct; booking.taxAmt=taxAmt; booking.discountType=discType; booking.discountValue=discVal; booking.discount=disc;
-  booking.roundOff=roundOff; booking.grandTotal=grand; booking.payment=pay; booking.balanceDue=balanceDue; booking.remark=remark;
+  booking.roundOff=roundOff; booking.grandTotal=grand; booking.payment=payResult.payment; booking.paymentSplits=payResult.paymentSplits; booking.balanceDue=balanceDue; booking.remark=remark;
 
   const r = rooms.find(x=>x.id===booking.roomId);
   if(r){ r.status='cleaning'; r.currentBookingId=null; }
