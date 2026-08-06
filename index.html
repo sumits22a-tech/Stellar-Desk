@@ -690,7 +690,6 @@ async function submitClientRegister(){
   await clientMetaSet(id, { passwordKey: await hashSecret(key), createdAt:new Date().toISOString(), hotelName:'' });
   clientId = id; clientKey = key;
   try{ localStorage.setItem('hms_client_id', id); localStorage.setItem('hms_client_key', key); }catch(e){}
-await addToClientIndex(id);
   await continueBoot();
 }
 async function submitClientLogin(){
@@ -703,16 +702,6 @@ async function submitClientLogin(){
     document.getElementById('authErr').textContent = 'Firebase/Internet se connect nahi ho pa raha. Settings mein Firebase config check karein.';
     return;
   }
-async function addToClientIndex(cid) {
-    if (!firebaseReady) return;
-    try {
-        await firestoreDb.collection(FIRESTORE_COLLECTION).doc('__client_index__').set({
-            clients: firebase.firestore.FieldValue.arrayUnion({ id: cid, addedAt: new Date() })
-        }, { merge: true });
-    } catch(e) { 
-        console.error('index update failed', e); 
-    }
-}
   const ok = existing && await passwordMatches(key, existing.passwordKey);
   if(!ok){
     document.getElementById('authErr').textContent = 'Client ID ya Password Key galat hai.';
@@ -734,11 +723,6 @@ function switchClient(){
 }
 async function continueBoot(){
   try{
-const clientMeta = await clientMetaGet(clientId);
-if (clientMeta && clientMeta.status === 'suspended') {
-    renderSuspendedScreen();
-    return;
-}
     await loadState();
     tickClock();
     applyTheme((settings && settings.theme) || 'saffron');
@@ -752,8 +736,6 @@ if (clientMeta && clientMeta.status === 'suspended') {
     console.error('continueBoot failed', err);
     const overlay = document.getElementById('authOverlay');
     if(overlay) overlay.classList.remove('hidden');
-  }
-}
     const titleEl = document.getElementById('authTitle');
     const subEl = document.getElementById('authSub');
     const bodyEl = document.getElementById('authBody');
@@ -3216,40 +3198,10 @@ function printReportPDF(){
   if(savedClientId && savedClientKey){
     clientId = savedClientId; clientKey = savedClientKey;
     await continueBoot();
-  else {
+  } else {
     renderClientGate('choose');
- }
-    async function toggleClientStatus(cid, currentStatus) {
-        if (!firebaseReady) return;
-        const newStatus = currentStatus === 'suspended' ? 'active' : 'suspended';
-        try {
-            await firestoreDb.collection(FIRESTORE_COLLECTION).doc(cid + '_meta').update({
-                status: newStatus
-            });
-            alert('Client status updated to ' + newStatus);
-        } catch(e) {
-            console.error('Status update failed', e);
-        }
-   }
-       function renderSuspendedScreen(){
-    const overlay = document.getElementById('authOverlay');
-    if(overlay) overlay.classList.remove('hidden');
-    
-    const titleEl = document.getElementById('authTitle');
-    if(titleEl) titleEl.textContent = 'Subscription Band Hai';
-    
-    const subEl = document.getElementById('authSub');
-    if(subEl) subEl.textContent = 'Aapka plan expire ho gaya hai.';
-    
-    const bodyEl = document.getElementById('authBody');
-    if(bodyEl) {
-        bodyEl.innerHTML = `
-            <p style="font-size:13px;color:var(--ink-soft);margin-bottom:10px;">Kripya vendor se sampark karke upgrade karein.</p>
-            <button class="btn" style="width:100%;margin-top:8px;" onclick="location.reload()">Dobara Try Karein (Reload)</button>
-            <button class="btn ghost" style="width:100%;margin-top:8px;" onclick="switchClient()">Doosra Client ID Try Karein</button>
-    }
-}
-
+  }
+})();
 </script>
 </body>
 </html>
